@@ -6,6 +6,7 @@ const API_URL = "https://novita-backend-production.up.railway.app";
 
 const Login = () => {
   const navigate = useNavigate();
+
   const [username, setUsername] = useState(
     () => localStorage.getItem("rememberedUsername") || ""
   );
@@ -18,6 +19,17 @@ const Login = () => {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  // ✅ Checkbox o'zgarganda darhol localStorage ni yangilaydi
+  const handleRememberMe = (e) => {
+    const checked = e.target.checked;
+    setRememberMe(checked);
+    if (!checked) {
+      // Checkbox olib tashlanganida darhol o'chiradi
+      localStorage.removeItem("rememberedUsername");
+      localStorage.removeItem("rememberedPassword");
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -51,6 +63,7 @@ const Login = () => {
 
       localStorage.setItem("token", data.token);
 
+      // ✅ rememberMe holatiga qarab saqlaydi yoki o'chiradi
       if (rememberMe) {
         localStorage.setItem("rememberedUsername", username.trim());
         localStorage.setItem("rememberedPassword", password);
@@ -59,8 +72,7 @@ const Login = () => {
         localStorage.removeItem("rememberedPassword");
       }
 
-      scheduleTokenExpiry(); // ✅ token vaqtini kuzatishni boshlaydi
-
+      scheduleTokenExpiry();
       navigate("/home");
     } catch (err) {
       setError(
@@ -74,7 +86,10 @@ const Login = () => {
   };
 
   return (
+    // ... barcha JSX avvalgidek qoladi, faqat checkbox qismini o'zgartiring:
+    // onChange={handleRememberMe}  <-- shu o'zgarish
     <div className="min-h-screen w-full flex items-center justify-center bg-[#090a0f] text-slate-200 p-4 font-sans antialiased relative overflow-hidden">
+      {/* ... avvalgi kod */}
       <div className="absolute top-[-10%] left-[-10%] w-125 h-125 bg-cyan-500/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-125 h-125 bg-blue-500/10 rounded-full blur-[120px] pointer-events-none" />
 
@@ -158,7 +173,7 @@ const Login = () => {
               <input
                 type="checkbox"
                 checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
+                onChange={handleRememberMe}
                 className="w-4 h-4 rounded-md accent-cyan-500 bg-slate-900 border-slate-800 cursor-pointer"
               />
               <span className="group-hover:text-slate-300 transition-colors">

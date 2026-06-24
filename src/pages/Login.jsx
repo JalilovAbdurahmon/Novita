@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { scheduleTokenExpiry } from "../utils/axios";
 
-const API_URL = "http://localhost:7000";
+const API_URL = "http://novita-backend-production.up.railway.app";
 
 const Login = () => {
   const navigate = useNavigate();

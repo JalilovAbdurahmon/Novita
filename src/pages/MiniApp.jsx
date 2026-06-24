@@ -1,18 +1,41 @@
 import { useState, useEffect, useRef } from "react";
 
 const tg = window.Telegram?.WebApp;
+const fmt = (n) => (n || 0).toLocaleString("ru-RU");
 
-const formatPrice = (num) => (num || 0).toLocaleString("ru-RU");
-
-// Group products by category (if category field exists, else put all in one group)
 const groupByCategory = (products) => {
   const map = {};
   products.forEach((p) => {
-    const cat = p.category || "Barchasi";
+    const cat = p.category || "Mahsulotlar";
     if (!map[cat]) map[cat] = [];
     map[cat].push(p);
   });
   return map;
+};
+
+const T = {
+  uz: {
+    loading: "Yuklanmoqda",
+    noProducts: "Mahsulotlar mavjud emas",
+    qty: "Miqdor",
+    total: "Jami",
+    order: "Buyurtma berish",
+    viewCart: "Savatni ko'rish",
+    per: "dona",
+    currency: "so'm",
+    changeLang: "RU",
+  },
+  ru: {
+    loading: "Загрузка",
+    noProducts: "Товаров нет",
+    qty: "Количество",
+    total: "Итого",
+    order: "Оформить заказ",
+    viewCart: "Посмотреть корзину",
+    per: "шт",
+    currency: "сум",
+    changeLang: "UZ",
+  },
 };
 
 export default function MiniApp() {
@@ -23,14 +46,16 @@ export default function MiniApp() {
   const [sending, setSending] = useState(false);
   const [lang, setLang] = useState("uz");
   const [activeCategory, setActiveCategory] = useState(null);
-  const [cartOpen, setCartOpen] = useState(false);
-  const categoryRefs = useRef({});
-  const scrollRef = useRef(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetMounted, setSheetMounted] = useState(false);
+  const catRefs = useRef({});
+  const tabsRef = useRef(null);
+
+  const tx = T[lang];
 
   useEffect(() => {
     tg?.ready();
     tg?.expand();
-
     const params = new URLSearchParams(window.location.search);
     const l = params.get("lang");
     if (l === "ru" || l === "uz") setLang(l);
@@ -40,7 +65,7 @@ export default function MiniApp() {
       .then((d) => {
         const data = d.data || [];
         setProducts(data);
-        const cats = [...new Set(data.map((p) => p.category || "Barchasi"))];
+        const cats = [...new Set(data.map((p) => p.category || "Mahsulotlar"))];
         setActiveCategory(cats[0] || null);
         setLoading(false);
       })
@@ -50,73 +75,293 @@ export default function MiniApp() {
   const grouped = groupByCategory(products);
   const categories = Object.keys(grouped);
 
-  const scrollToCategory = (cat) => {
-    setActiveCategory(cat);
-    const el = categoryRefs.current[cat];
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+  const openSheet = (product) => {
+    setSelected(product);
+    setQuantity(1);
+    setSheetMounted(true);
+    requestAnimationFrame(() => setSheetOpen(true));
   };
 
-  const handleSelect = (p) => {
-    setSelected(p);
-    setQuantity(1);
-    setCartOpen(true);
+  const closeSheet = () => {
+    setSheetOpen(false);
+    setTimeout(() => setSheetMounted(false), 300);
   };
 
   const handleOrder = () => {
     if (!selected) return;
     setSending(true);
-    const data = JSON.stringify({ productId: selected._id, quantity });
-    tg?.sendData(data);
+    tg?.sendData(JSON.stringify({ productId: selected._id, quantity }));
+  };
+
+  const scrollToCategory = (cat) => {
+    setActiveCategory(cat);
+    catRefs.current[cat]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const tabEl = tabsRef.current?.querySelector(`[data-cat="${cat}"]`);
+    tabEl?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-white gap-3">
-        <div className="w-10 h-10 border-3 border-yellow-400/30 border-t-yellow-400 rounded-full animate-spin" />
-        <p className="text-sm text-gray-400 font-medium">
-          {lang === "uz" ? "Yuklanmoqda..." : "Загрузка..."}
-        </p>
-      </div>
+      <>
+        <style>{`
+          @keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:1} }
+          .sk { background:#f0f0f0; border-radius:16px; animation:pulse 1.4s ease infinite; }
+        `}</style>
+        <div style={{ background: "#fff", minHeight: "100vh", padding: "20px 16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+            <div className="sk" style={{ width: 40, height: 40, borderRadius: "50%" }} />
+            <div>
+              <div className="sk" style={{ width: 120, height: 14, marginBottom: 6 }} />
+              <div className="sk" style={{ width: 80, height: 11 }} />
+            </div>
+          </div>
+          <div className="sk" style={{ height: 36, marginBottom: 20, borderRadius: 24 }} />
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+              <div className="sk" style={{ width: 90, height: 90, borderRadius: 16, flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <div className="sk" style={{ height: 14, marginBottom: 8, width: "70%" }} />
+                <div className="sk" style={{ height: 11, marginBottom: 8, width: "90%" }} />
+                <div className="sk" style={{ height: 28, width: 100, borderRadius: 20 }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f5f5] text-gray-900 flex flex-col">
-      {/* ── HEADER ── */}
-      <header className="sticky top-0 z-30 bg-white shadow-sm px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-full bg-yellow-400 flex items-center justify-center">
-            <svg className="w-5 h-5 text-black" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" />
-            </svg>
-          </div>
-          <span className="font-black text-base tracking-tight">
-            {lang === "uz" ? "Buyurtma" : "Заказ"}
-          </span>
-        </div>
-        <button
-          onClick={() => setLang(lang === "uz" ? "ru" : "uz")}
-          className="text-xs font-bold px-3 py-1.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200"
-        >
-          {lang === "uz" ? "RU" : "UZ"}
-        </button>
-      </header>
+    <>
+      <style>{`
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        body { background: #f7f7f8; }
 
-      {/* ── CATEGORY TABS ── */}
+        .header {
+          position: sticky; top: 0; z-index: 30;
+          background: #fff;
+          padding: 14px 16px 12px;
+          border-bottom: 1px solid #f0f0f0;
+          display: flex; align-items: center; gap: 12px;
+        }
+        .header-logo {
+          width: 38px; height: 38px; border-radius: 12px;
+          background: #FFCC00; display: flex; align-items: center; justify-content: center;
+          font-size: 18px; flex-shrink: 0;
+        }
+        .header-title { font-size: 17px; font-weight: 800; color: #111; letter-spacing: -0.3px; flex: 1; }
+        .header-sub { font-size: 12px; color: #999; margin-top: 1px; }
+        .lang-btn {
+          background: #f5f5f5; border: none; padding: 6px 12px;
+          border-radius: 20px; font-size: 12px; font-weight: 700;
+          color: #555; cursor: pointer; transition: background .15s;
+        }
+        .lang-btn:active { background: #e8e8e8; }
+
+        .tabs-wrap {
+          position: sticky; top: 65px; z-index: 20;
+          background: #fff; border-bottom: 1px solid #f0f0f0;
+          padding: 10px 0;
+        }
+        .tabs {
+          display: flex; gap: 8px; overflow-x: auto; padding: 0 16px;
+          scrollbar-width: none;
+        }
+        .tabs::-webkit-scrollbar { display: none; }
+        .tab {
+          flex-shrink: 0; padding: 7px 16px; border-radius: 24px;
+          font-size: 13px; font-weight: 700; cursor: pointer;
+          transition: all .2s; border: none;
+          background: #f3f3f3; color: #777;
+        }
+        .tab.active { background: #FFCC00; color: #111; }
+
+        .section-title {
+          font-size: 20px; font-weight: 900; color: #111;
+          letter-spacing: -0.4px; padding: 20px 16px 10px;
+        }
+
+        .card {
+          display: flex; gap: 0; margin: 0 16px 10px;
+          background: #fff; border-radius: 20px; overflow: hidden;
+          border: none;
+          cursor: pointer;
+          transition: transform .15s;
+          -webkit-tap-highlight-color: transparent;
+          position: relative;
+        }
+        .card:active { transform: scale(0.98); }
+
+        .card-img {
+          width: 100px; height: 100px; flex-shrink: 0;
+          object-fit: cover; background: #f5f5f5;
+        }
+        .card-img-placeholder {
+          width: 100px; height: 100px; flex-shrink: 0;
+          background: #f9f9f9; display: flex; align-items: center;
+          justify-content: center; font-size: 32px;
+        }
+        .card-body {
+          flex: 1; padding: 12px 14px 12px 12px;
+          display: flex; flex-direction: column; justify-content: space-between;
+          min-width: 0;
+        }
+        .card-name {
+          font-size: 14px; font-weight: 800; color: #111;
+          line-height: 1.35; margin-bottom: 4px;
+          display: -webkit-box; -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical; overflow: hidden;
+        }
+        .card-desc {
+          font-size: 12px; color: #aaa; line-height: 1.4;
+          display: -webkit-box; -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical; overflow: hidden;
+          margin-bottom: 8px; flex: 1;
+        }
+        .card-footer { display: flex; align-items: center; justify-content: space-between; }
+        .card-price {
+          font-size: 14px; font-weight: 800; color: #111;
+        }
+        .card-add {
+          width: 32px; height: 32px; border-radius: 10px;
+          background: #FFCC00; border: none; cursor: pointer;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 20px; font-weight: 400; color: #111;
+          transition: transform .15s;
+          flex-shrink: 0;
+        }
+        .card-add:active { transform: scale(0.9); }
+        .card.selected::after {
+          content: ''; position: absolute; inset: 0;
+          border-radius: 20px; border: 2.5px solid #FFCC00;
+          pointer-events: none;
+        }
+
+        .backdrop {
+          position: fixed; inset: 0; z-index: 40;
+          background: rgba(0,0,0,0); backdrop-filter: blur(0px);
+          transition: background .3s, backdrop-filter .3s;
+        }
+        .backdrop.open { background: rgba(0,0,0,0.35); backdrop-filter: blur(2px); }
+
+        .sheet {
+          position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+          background: #fff; border-radius: 28px 28px 0 0;
+          padding: 0 0 env(safe-area-inset-bottom, 0);
+          transform: translateY(110%);
+          transition: transform .32s cubic-bezier(0.34, 1.1, 0.64, 1);
+        }
+        .sheet.open { transform: translateY(0); }
+
+        .sheet-handle {
+          width: 36px; height: 4px; background: #e0e0e0;
+          border-radius: 2px; margin: 12px auto 16px;
+        }
+        .sheet-inner { padding: 0 20px 24px; }
+
+        .sheet-product { display: flex; gap: 14px; margin-bottom: 20px; }
+        .sheet-img {
+          width: 72px; height: 72px; border-radius: 16px;
+          object-fit: cover; background: #f5f5f5; flex-shrink: 0;
+        }
+        .sheet-img-placeholder {
+          width: 72px; height: 72px; border-radius: 16px;
+          background: #f9f9f9; display: flex; align-items: center;
+          justify-content: center; font-size: 28px; flex-shrink: 0;
+        }
+        .sheet-name { font-size: 16px; font-weight: 800; color: #111; line-height: 1.3; margin-bottom: 4px; }
+        .sheet-price-sub { font-size: 13px; color: #999; }
+
+        .qty-row {
+          display: flex; align-items: center; justify-content: space-between;
+          background: #f7f7f8; border-radius: 16px;
+          padding: 12px 16px; margin-bottom: 16px;
+        }
+        .qty-label { font-size: 13px; font-weight: 700; color: #777; }
+        .qty-controls { display: flex; align-items: center; gap: 16px; }
+        .qty-btn {
+          width: 36px; height: 36px; border-radius: 12px;
+          border: none; cursor: pointer; display: flex;
+          align-items: center; justify-content: center;
+          font-size: 20px; font-weight: 700; transition: transform .1s;
+        }
+        .qty-btn:active { transform: scale(0.88); }
+        .qty-btn.minus { background: #fff; color: #333; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+        .qty-btn.plus { background: #FFCC00; color: #111; }
+        .qty-num { font-size: 20px; font-weight: 900; color: #111; min-width: 28px; text-align: center; }
+
+        .total-row {
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 0 4px; margin-bottom: 16px;
+        }
+        .total-label { font-size: 14px; color: #999; font-weight: 600; }
+        .total-amount { font-size: 18px; font-weight: 900; color: #111; }
+
+        .order-btn {
+          width: 100%; padding: 16px; border-radius: 18px;
+          background: #FFCC00; border: none; cursor: pointer;
+          font-size: 15px; font-weight: 900; color: #111;
+          display: flex; align-items: center; justify-content: center; gap: 8px;
+          transition: transform .15s, opacity .15s;
+          letter-spacing: -0.2px;
+        }
+        .order-btn:active { transform: scale(0.98); }
+        .order-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .float-bar {
+          position: fixed; bottom: 16px; left: 16px; right: 16px; z-index: 35;
+          background: #111; border-radius: 18px;
+          padding: 14px 18px;
+          display: flex; align-items: center;
+          cursor: pointer; transition: transform .15s;
+          box-shadow: 0 8px 24px rgba(0,0,0,.18);
+        }
+        .float-bar:active { transform: scale(0.98); }
+        .float-badge {
+          background: #FFCC00; color: #111;
+          width: 26px; height: 26px; border-radius: 8px;
+          font-size: 13px; font-weight: 900;
+          display: flex; align-items: center; justify-content: center;
+          margin-right: 12px; flex-shrink: 0;
+        }
+        .float-label { color: #fff; font-size: 14px; font-weight: 800; flex: 1; }
+        .float-price { color: #FFCC00; font-size: 14px; font-weight: 900; }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner {
+          width: 18px; height: 18px; border-radius: 50%;
+          border: 2.5px solid rgba(0,0,0,.2);
+          border-top-color: #111; animation: spin .7s linear infinite;
+        }
+        .main-content { padding-bottom: 100px; }
+      `}</style>
+
+      {/* HEADER */}
+      <div className="header">
+        <div className="header-logo">🍕</div>
+        <div style={{ flex: 1 }}>
+          <div className="header-title">
+            {lang === "uz" ? "Buyurtma berish" : "Оформить заказ"}
+          </div>
+          <div className="header-sub">
+            {lang === "uz" ? "Mahsulot tanlang" : "Выберите товар"}
+          </div>
+        </div>
+        <button className="lang-btn" onClick={() => setLang(lang === "uz" ? "ru" : "uz")}>
+          {tx.changeLang}
+        </button>
+      </div>
+
+      {/* CATEGORY TABS */}
       {categories.length > 1 && (
-        <div className="sticky top-[57px] z-20 bg-white border-b border-gray-100 px-4 py-2">
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-0.5">
+        <div className="tabs-wrap">
+          <div className="tabs" ref={tabsRef}>
             {categories.map((cat) => (
               <button
                 key={cat}
+                data-cat={cat}
+                className={`tab${activeCategory === cat ? " active" : ""}`}
                 onClick={() => scrollToCategory(cat)}
-                className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-bold transition-all ${
-                  activeCategory === cat
-                    ? "bg-yellow-400 text-black shadow-sm"
-                    : "bg-gray-100 text-gray-500"
-                }`}
               >
                 {cat}
               </button>
@@ -125,202 +370,165 @@ export default function MiniApp() {
         </div>
       )}
 
-      {/* ── PRODUCTS ── */}
-      <main className="flex-1 pb-32" ref={scrollRef}>
+      {/* PRODUCTS */}
+      <div className="main-content">
         {categories.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-gray-400 gap-2">
-            <span className="text-5xl">🍕</span>
-            <p className="text-sm font-medium">
-              {lang === "uz" ? "Mahsulotlar yo'q" : "Товаров нет"}
-            </p>
+          <div style={{ textAlign: "center", padding: "60px 20px", color: "#aaa" }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>🍽️</div>
+            <p style={{ fontSize: 14, fontWeight: 600 }}>{tx.noProducts}</p>
           </div>
         ) : (
           categories.map((cat) => (
             <section
               key={cat}
-              ref={(el) => (categoryRefs.current[cat] = el)}
+              ref={(el) => (catRefs.current[cat] = el)}
             >
               {categories.length > 1 && (
-                <div className="px-4 pt-5 pb-2">
-                  <h2 className="text-lg font-black text-gray-800">{cat}</h2>
-                </div>
+                <div className="section-title">{cat}</div>
               )}
-              <div className="px-4 flex flex-col gap-3 pt-3">
+              <div style={{ paddingTop: categories.length === 1 ? 12 : 0 }}>
                 {grouped[cat].map((p) => {
                   const isSelected = selected?._id === p._id;
                   return (
-                    <button
+                    <div
                       key={p._id}
-                      onClick={() => handleSelect(p)}
-                      className={`w-full flex items-center gap-4 bg-white rounded-2xl overflow-hidden shadow-sm active:scale-[0.98] transition-transform text-left border-2 ${
-                        isSelected
-                          ? "border-yellow-400"
-                          : "border-transparent"
-                      }`}
+                      className={`card${isSelected ? " selected" : ""}`}
+                      onClick={() => openSheet(p)}
                     >
-                      {/* Image */}
-                      <div className="w-24 h-24 shrink-0 bg-gray-100 overflow-hidden">
-                        {p.image ? (
-                          <img
-                            src={p.image}
-                            alt={p.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-3xl">
-                            🍕
+                      {p.image ? (
+                        <img src={p.image} alt={p.name} className="card-img" />
+                      ) : (
+                        <div className="card-img-placeholder">🍕</div>
+                      )}
+                      <div className="card-body">
+                        <div>
+                          <div className="card-name">{p.name}</div>
+                          {p.description && (
+                            <div className="card-desc">{p.description}</div>
+                          )}
+                        </div>
+                        <div className="card-footer">
+                          <div className="card-price">
+                            {p.price > 0
+                              ? `${fmt(p.price)} ${tx.currency}`
+                              : "—"}
                           </div>
-                        )}
-                      </div>
-
-                      {/* Info */}
-                      <div className="flex-1 py-3 pr-3 min-w-0">
-                        <p className="font-bold text-sm text-gray-900 leading-snug mb-1">
-                          {p.name}
-                        </p>
-                        {p.description && (
-                          <p className="text-xs text-gray-400 leading-snug line-clamp-2 mb-1.5">
-                            {p.description}
-                          </p>
-                        )}
-                        {p.price > 0 && (
-                          <span className="inline-block text-xs font-black text-gray-700 bg-gray-100 px-2.5 py-1 rounded-full">
-                            {formatPrice(p.price)}{" "}
-                            {lang === "uz" ? "so'm" : "сум"}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Add button */}
-                      <div className="pr-4">
-                        <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-lg transition-all ${
-                            isSelected
-                              ? "bg-yellow-400 text-black"
-                              : "bg-gray-100 text-gray-400"
-                          }`}
-                        >
-                          {isSelected ? "✓" : "+"}
+                          <button
+                            className="card-add"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openSheet(p);
+                            }}
+                          >
+                            {isSelected ? "✓" : "+"}
+                          </button>
                         </div>
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
             </section>
           ))
         )}
-      </main>
+      </div>
 
-      {/* ── CART BOTTOM SHEET ── */}
-      {selected && cartOpen && (
-        <div className="fixed inset-0 z-40 flex flex-col justify-end">
-          {/* Backdrop */}
+      {/* BOTTOM SHEET */}
+      {sheetMounted && (
+        <>
           <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={() => setCartOpen(false)}
+            className={`backdrop${sheetOpen ? " open" : ""}`}
+            onClick={closeSheet}
           />
-
-          {/* Sheet */}
-          <div className="relative bg-white rounded-t-3xl p-5 shadow-2xl">
-            <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
-
-            {/* Product preview */}
-            <div className="flex gap-4 mb-5">
-              <div className="w-16 h-16 rounded-2xl bg-gray-100 overflow-hidden shrink-0">
-                {selected.image ? (
-                  <img
-                    src={selected.image}
-                    alt={selected.name}
-                    className="w-full h-full object-cover"
-                  />
+          <div className={`sheet${sheetOpen ? " open" : ""}`}>
+            <div className="sheet-handle" />
+            <div className="sheet-inner">
+              {/* Product info */}
+              <div className="sheet-product">
+                {selected?.image ? (
+                  <img src={selected.image} alt={selected.name} className="sheet-img" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-2xl">
-                    🍕
-                  </div>
+                  <div className="sheet-img-placeholder">🍕</div>
                 )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-black text-base text-gray-900 leading-snug">
-                  {selected.name}
-                </p>
-                {selected.price > 0 && (
-                  <p className="text-sm text-gray-500 mt-0.5">
-                    {formatPrice(selected.price)}{" "}
-                    {lang === "uz" ? "so'm / dona" : "сум / шт"}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Quantity */}
-            <div className="flex items-center justify-between bg-gray-50 rounded-2xl p-4 mb-5">
-              <span className="text-sm font-bold text-gray-500">
-                {lang === "uz" ? "Miqdor" : "Количество"}
-              </span>
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                  className="w-9 h-9 rounded-full bg-white shadow-sm border border-gray-200 text-lg font-black text-gray-600 flex items-center justify-center active:scale-95 transition-transform"
-                >
-                  −
-                </button>
-                <span className="text-xl font-black text-gray-900 w-8 text-center">
-                  {quantity}
-                </span>
-                <button
-                  onClick={() => setQuantity((q) => q + 1)}
-                  className="w-9 h-9 rounded-full bg-yellow-400 shadow-sm text-lg font-black text-black flex items-center justify-center active:scale-95 transition-transform"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-
-            {/* Order button */}
-            <button
-              onClick={handleOrder}
-              disabled={sending}
-              className="w-full py-4 rounded-2xl font-black text-base bg-yellow-400 text-black shadow-lg shadow-yellow-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-            >
-              {sending ? (
-                <span className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin" />
-              ) : (
-                <>
-                  <span>
-                    {lang === "uz" ? "Zakaz berish" : "Заказать"}
-                  </span>
-                  {selected.price > 0 && (
-                    <span className="opacity-70">
-                      — {formatPrice((selected.price || 0) * quantity)}{" "}
-                      {lang === "uz" ? "so'm" : "сум"}
-                    </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="sheet-name">{selected?.name}</div>
+                  {selected?.description && (
+                    <div style={{ fontSize: 12, color: "#bbb", marginBottom: 6, lineHeight: 1.4 }}>
+                      {selected.description}
+                    </div>
                   )}
-                </>
+                  {selected?.price > 0 && (
+                    <div className="sheet-price-sub">
+                      {fmt(selected.price)} {tx.currency} / {tx.per}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Quantity */}
+              <div className="qty-row">
+                <span className="qty-label">{tx.qty}</span>
+                <div className="qty-controls">
+                  <button
+                    className="qty-btn minus"
+                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                  >
+                    −
+                  </button>
+                  <span className="qty-num">{quantity}</span>
+                  <button
+                    className="qty-btn plus"
+                    onClick={() => setQuantity((q) => q + 1)}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Total */}
+              {selected?.price > 0 && (
+                <div className="total-row">
+                  <span className="total-label">{tx.total}</span>
+                  <span className="total-amount">
+                    {fmt((selected.price || 0) * quantity)} {tx.currency}
+                  </span>
+                </div>
               )}
-            </button>
+
+              {/* Order button */}
+              <button
+                className="order-btn"
+                onClick={handleOrder}
+                disabled={sending}
+              >
+                {sending ? (
+                  <div className="spinner" />
+                ) : (
+                  <>
+                    <span>{tx.order}</span>
+                    {selected?.price > 0 && (
+                      <span style={{ opacity: 0.65, fontWeight: 700, fontSize: 13 }}>
+                        · {fmt((selected.price || 0) * quantity)} {tx.currency}
+                      </span>
+                    )}
+                  </>
+                )}
+              </button>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
-      {/* ── FLOATING CART BUTTON (when item selected but sheet closed) ── */}
-      {selected && !cartOpen && (
-        <div className="fixed bottom-6 left-0 right-0 px-4 z-30">
-          <button
-            onClick={() => setCartOpen(true)}
-            className="w-full py-4 rounded-2xl font-black text-base bg-yellow-400 text-black shadow-xl shadow-yellow-300/50 active:scale-[0.98] transition-all flex items-center justify-between px-5"
-          >
-            <div className="w-7 h-7 rounded-full bg-black/10 flex items-center justify-center text-sm font-black">
-              {quantity}
-            </div>
-            <span>{lang === "uz" ? "Zakazni ko'rish" : "Посмотреть заказ"}</span>
-            <span className="text-sm font-bold opacity-70">
-              {formatPrice((selected.price || 0) * quantity)}{" "}
-              {lang === "uz" ? "so'm" : "сум"}
-            </span>
-          </button>
+      {/* FLOAT BAR — sheet yopilganda */}
+      {selected && !sheetOpen && !sheetMounted && (
+        <div className="float-bar" onClick={() => openSheet(selected)}>
+          <div className="float-badge">{quantity}</div>
+          <span className="float-label">{tx.viewCart}</span>
+          <span className="float-price">
+            {fmt((selected.price || 0) * quantity)} {tx.currency}
+          </span>
         </div>
       )}
-    </div>
+    </>
   );
 }

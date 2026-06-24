@@ -2,7 +2,7 @@ import axios from "axios";
 import toast from "react-hot-toast";
 
 const instance = axios.create({
-  baseURL: "http://localhost:7000",
+  baseURL: "novita-backend-production.up.railway.app",
   headers: { "Content-Type": "application/json" },
 });
 

@@ -20,7 +20,7 @@ export default function MiniApp() {
     const l = params.get("lang");
     if (l === "ru" || l === "uz") setLang(l);
 
-    fetch("/api/bot/products")
+    fetch("https://novita-backend-production.up.railway.app/api/bot/products")
       .then((r) => r.json())
       .then((d) => {
         setProducts(d.data || []);

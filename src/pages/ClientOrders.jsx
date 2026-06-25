@@ -31,8 +31,7 @@ const ClientOrders = () => {
 
   const fetchOrders = async () => {
     try {
-      const res = await axios.get("/api/bot/orders");
-      setOrders(res.data || []);
+      setOrders(Array.isArray(res.data) ? res.data : res.data.orders || []);
     } catch (err) {
       console.error("Zakazlarni olishda xato:", err);
     } finally {

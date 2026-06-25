@@ -1,25 +1,34 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "../utils/axios.js";
 
-// ─── Status konfiguratsiyasi ─────────────────────────────────────────────────
 const STATUS_CONFIG = {
-  new: { label: "Yangi", dot: "bg-orange-500", badge: "bg-orange-500/15 text-orange-400 border border-orange-500/30" },
-  accepted: { label: "Qabul qilindi", dot: "bg-blue-500", badge: "bg-blue-500/15 text-blue-400 border border-blue-500/30" },
+  new: {
+    label: "Новый",
+    dot: "bg-orange-500",
+    badge: "bg-orange-500/15 text-orange-400 border border-orange-500/30",
+  },
+  accepted: {
+    label: "Принят",
+    dot: "bg-blue-500",
+    badge: "bg-blue-500/15 text-blue-400 border border-blue-500/30",
+  },
 };
 
 function timeAgo(dateStr) {
   const diffMs = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return "hozir";
-  if (mins < 60) return `${mins} daq oldin`;
+  if (mins < 1) return "только что";
+  if (mins < 60) return `${mins} мин назад`;
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} soat oldin`;
-  return new Date(dateStr).toLocaleDateString("uz-UZ");
+  if (hours < 24) return `${hours} ч назад`;
+  return new Date(dateStr).toLocaleDateString("ru-RU");
 }
 
 function formatPhone(phone) {
   if (!phone) return "—";
-  return phone.replace(/^\+?998/, "+998 ").replace(/(\d{2})(\d{3})(\d{2})(\d{2})$/, "$1 $2-$3-$4");
+  return phone
+    .replace(/^\+?998/, "+998 ")
+    .replace(/(\d{2})(\d{3})(\d{2})(\d{2})$/, "$1 $2-$3-$4");
 }
 
 function mapsLink(location) {
@@ -27,7 +36,7 @@ function mapsLink(location) {
   return `https://www.google.com/maps?q=${location.lat},${location.lng}`;
 }
 
-export default function ClientOrders() {
+export default function ClientBotOrders() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -39,13 +48,18 @@ export default function ClientOrders() {
     try {
       const res = await axios.get("/api/bot/orders");
       const all = res.data?.data || [];
-      const active = all.filter((o) => o.status === "new" || o.status === "accepted");
+      const active = all.filter(
+        (o) => o.status === "new" || o.status === "accepted"
+      );
       setOrders(active);
       setError(null);
     } catch (err) {
-      setError(err.response?.data?.message || "Zakazlarni yuklashda xatolik yuz berdi");
+      if (!silent)
+        setError(
+          err.response?.data?.message || "Ошибка при загрузке заказов"
+        );
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -59,13 +73,16 @@ export default function ClientOrders() {
     setUpdatingId(id);
     try {
       await axios.put(`/api/bot/orders/${id}/status`, { status });
+      // Если статус "delivered" или "cancelled" — убираем из активных
       setOrders((prev) =>
         status === "delivered" || status === "cancelled"
           ? prev.filter((o) => o._id !== id)
           : prev.map((o) => (o._id === id ? { ...o, status } : o))
       );
     } catch (err) {
-      alert(err.response?.data?.message || "Statusni yangilashda xatolik yuz berdi");
+      alert(
+        err.response?.data?.message || "Ошибка при обновлении статуса"
+      );
     } finally {
       setUpdatingId(null);
     }
@@ -73,13 +90,24 @@ export default function ClientOrders() {
 
   const completeAll = async () => {
     if (!orders.length) return;
-    if (!window.confirm(`Barcha ${orders.length} ta zakazni yakunlamoqchimisiz?`)) return;
+    if (
+      !window.confirm(
+        `Завершить все ${orders.length} заказов?`
+      )
+    )
+      return;
     setBulkLoading(true);
     try {
-      await Promise.all(orders.map((o) => axios.put(`/api/bot/orders/${o._id}/status`, { status: "delivered" })));
+      await Promise.all(
+        orders.map((o) =>
+          axios.put(`/api/bot/orders/${o._id}/status`, {
+            status: "delivered",
+          })
+        )
+      );
       setOrders([]);
-    } catch (err) {
-      alert("Ba'zi zakazlarni yakunlashda xatolik yuz berdi");
+    } catch {
+      alert("Ошибка при завершении некоторых заказов");
       fetchOrders(true);
     } finally {
       setBulkLoading(false);
@@ -93,10 +121,10 @@ export default function ClientOrders() {
         <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="text-2xl font-bold text-white tracking-tight">
-              Bot zakazlari
+              Заказы клиентов
             </h1>
             <p className="text-neutral-500 text-sm mt-1">
-              Telegram client botdan kelgan aktiv buyurtmalar
+              Активные заказы из Telegram бота
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -105,15 +133,15 @@ export default function ClientOrders() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-500 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500" />
               </span>
-              {orders.length} ta aktiv
+              {orders.length} активных
             </span>
             {orders.length > 0 && (
               <button
                 onClick={completeAll}
                 disabled={bulkLoading}
-                className="px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
+                className="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
               >
-                {bulkLoading ? "Yakunlanmoqda..." : "Barchasini yakunla"}
+                {bulkLoading ? "Завершаем..." : "Завершить все"}
               </button>
             )}
           </div>
@@ -126,17 +154,23 @@ export default function ClientOrders() {
           </div>
         )}
 
-        {/* Loading */}
+        {/* Loading skeletons */}
         {loading ? (
           <div className="grid gap-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-32 rounded-xl bg-neutral-900 border border-neutral-800 animate-pulse" />
+              <div
+                key={i}
+                className="h-36 rounded-xl bg-neutral-900 border border-neutral-800 animate-pulse"
+              />
             ))}
           </div>
         ) : orders.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-neutral-800 py-20 text-center">
-            <p className="text-neutral-500">Hozircha aktiv zakazlar yo'q</p>
-            <p className="text-neutral-600 text-sm mt-1">Yangi buyurtmalar shu yerda paydo bo'ladi</p>
+          <div className="rounded-xl border border-dashed border-neutral-800 py-24 text-center">
+            <p className="text-4xl mb-3">📭</p>
+            <p className="text-neutral-400 font-medium">Нет активных заказов</p>
+            <p className="text-neutral-600 text-sm mt-1">
+              Новые заказы появятся здесь автоматически
+            </p>
           </div>
         ) : (
           <div className="grid gap-3">
@@ -144,79 +178,131 @@ export default function ClientOrders() {
               const status = STATUS_CONFIG[order.status] || STATUS_CONFIG.new;
               const link = mapsLink(order.location);
               const isUpdating = updatingId === order._id;
+              const total =
+                (order.product?.price || 0) * (order.quantity || 0);
 
               return (
                 <div
                   key={order._id}
-                  className="rounded-xl bg-neutral-900 border border-neutral-800 p-4 md:p-5 hover:border-neutral-700 transition-colors"
+                  className="rounded-xl bg-neutral-900 border border-neutral-800 hover:border-neutral-700 transition-colors overflow-hidden"
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    {/* Left: info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${status.badge}`}>
-                          <span className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />
-                          {status.label}
-                        </span>
-                        <span className="text-neutral-500 text-xs">{timeAgo(order.createdAt)}</span>
-                      </div>
+                  {/* Status bar top */}
+                  <div
+                    className={`h-0.5 w-full ${
+                      order.status === "new" ? "bg-orange-500" : "bg-blue-500"
+                    }`}
+                  />
 
-                      <h3 className="text-white font-semibold text-base">
-                        {order.product?.name || "Noma'lum mahsulot"}
-                        <span className="text-neutral-400 font-normal"> × {order.quantity}</span>
-                      </h3>
+                  <div className="p-4 md:p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      {/* Left info */}
+                      <div className="flex-1 min-w-0">
+                        {/* Status + time */}
+                        <div className="flex items-center gap-2 mb-3">
+                          <span
+                            className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${status.badge}`}
+                          >
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full ${status.dot}`}
+                            />
+                            {status.label}
+                          </span>
+                          <span className="text-neutral-500 text-xs">
+                            {timeAgo(order.createdAt)}
+                          </span>
+                        </div>
 
-                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-neutral-400">
-                        <span>👤 {order.botUser?.fullName || "Noma'lum"}</span>
-                        <span>📞 {formatPhone(order.botUser?.phone)}</span>
-                        {order.product?.price > 0 && (
-                          <span>💵 {(order.product.price * order.quantity).toLocaleString("uz-UZ")} so'm</span>
+                        {/* Product */}
+                        <h3 className="text-white font-semibold text-base leading-tight">
+                          {order.product?.name || "Неизвестный товар"}
+                          <span className="text-neutral-400 font-normal">
+                            {" "}
+                            × {order.quantity}
+                          </span>
+                        </h3>
+
+                        {/* Meta */}
+                        <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-neutral-400">
+                          <span>
+                            👤{" "}
+                            <span className="text-neutral-300">
+                              {order.botUser?.fullName || "Неизвестно"}
+                            </span>
+                          </span>
+                          <span>
+                            📞{" "}
+                            <span className="text-neutral-300">
+                              {formatPhone(order.botUser?.phone)}
+                            </span>
+                          </span>
+                          {total > 0 && (
+                            <span>
+                              💵{" "}
+                              <span className="text-orange-400 font-medium">
+                                {total.toLocaleString("ru-RU")} сум
+                              </span>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Note */}
+                        {order.note && (
+                          <p className="mt-2 text-sm text-neutral-500 italic">
+                            "{order.note}"
+                          </p>
                         )}
+
+                        {/* Location */}
+                        <div className="mt-3">
+                          {link ? (
+                            <a
+                              href={link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-sm text-cyan-400 hover:text-cyan-300 transition-colors"
+                            >
+                              📍 Открыть на карте
+                            </a>
+                          ) : (
+                            <span className="text-sm text-neutral-600">
+                              📍 Локация ещё не получена
+                            </span>
+                          )}
+                        </div>
                       </div>
 
-                      {order.note && (
-                        <p className="mt-2 text-sm text-neutral-500 italic">"{order.note}"</p>
-                      )}
-
-                      {link ? (
-                        <a
-                          href={link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-3 inline-flex items-center gap-1.5 text-sm text-orange-400 hover:text-orange-300 transition-colors"
-                        >
-                          📍 Xaritada ko'rish
-                        </a>
-                      ) : (
-                        <p className="mt-3 text-sm text-neutral-600">📍 Lokatsiya kutilmoqda...</p>
-                      )}
-                    </div>
-
-                    {/* Right: actions */}
-                    <div className="flex flex-col gap-2 w-full sm:w-auto">
-                      {order.status === "new" && (
+                      {/* Right: action buttons */}
+                      <div className="flex flex-col gap-2 w-full sm:w-auto min-w-35">
+                        {order.status === "new" && (
+                          <button
+                            onClick={() =>
+                              updateStatus(order._id, "accepted")
+                            }
+                            disabled={isUpdating}
+                            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium transition-colors whitespace-nowrap"
+                          >
+                            ✅ Принять
+                          </button>
+                        )}
                         <button
-                          onClick={() => updateStatus(order._id, "accepted")}
+                          onClick={() =>
+                            updateStatus(order._id, "delivered")
+                          }
                           disabled={isUpdating}
-                          className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium transition-colors whitespace-nowrap"
+                          className="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-medium transition-colors whitespace-nowrap"
                         >
-                          Qabul qilish
+                          {isUpdating ? "..." : "🏁 Выполнено"}
                         </button>
-                      )}
-                      <button
-                        onClick={() => updateStatus(order._id, "delivered")}
-                        disabled={isUpdating}
-                        className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-medium transition-colors whitespace-nowrap"
-                      >
-                        {isUpdating ? "..." : "Yakunlash"}
-                      </button>
-                      <button
-                        onClick={() => updateStatus(order._id, "cancelled")}
-                        disabled={isUpdating}
-                        className="px-4 py-2 rounded-lg bg-neutral-800 hover:bg-red-900/50 text-neutral-400 hover:text-red-400 disabled:opacity-50 text-sm font-medium transition-colors whitespace-nowrap"
-                      >
-                        Bekor qilish
-                      </button>
+                        <button
+                          onClick={() =>
+                            updateStatus(order._id, "cancelled")
+                          }
+                          disabled={isUpdating}
+                          className="px-4 py-2 rounded-lg bg-neutral-800 hover:bg-red-900/40 border border-neutral-700 hover:border-red-700/50 text-neutral-400 hover:text-red-400 disabled:opacity-50 text-sm font-medium transition-colors whitespace-nowrap"
+                        >
+                          ✕ Отмена
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

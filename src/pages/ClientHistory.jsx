@@ -42,7 +42,7 @@ function mapsLink(location) {
   return `https://www.google.com/maps?q=${location.lat},${location.lng}`;
 }
 
-export default function ClientBotOrderHistory() {
+export default function ClientOrderHistory() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

@@ -47,9 +47,24 @@ export default function ClientBotOrderHistory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
-  // По умолчанию показываем только историю (выполнен + отменён)
   const [statusFilter, setStatusFilter] = useState("history");
   const [selected, setSelected] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+
+  const deleteOrder = async (e, id) => {
+    e.stopPropagation();
+    if (!window.confirm("Удалить этот заказ из истории?")) return;
+    setDeletingId(id);
+    try {
+      await axios.delete(`/api/bot/orders/${id}`);
+      setOrders((prev) => prev.filter((o) => o._id !== id));
+      if (selected?._id === id) setSelected(null);
+    } catch (err) {
+      alert(err.response?.data?.message || "Ошибка при удалении");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -59,9 +74,7 @@ export default function ClientBotOrderHistory() {
         setOrders(res.data?.data || []);
         setError(null);
       } catch (err) {
-        setError(
-          err.response?.data?.message || "Ошибка при загрузке истории"
-        );
+        setError(err.response?.data?.message || "Ошибка при загрузке истории");
       } finally {
         setLoading(false);
       }
@@ -71,26 +84,19 @@ export default function ClientBotOrderHistory() {
 
   const filtered = useMemo(() => {
     return orders.filter((o) => {
-      // "history" — только выполненные и отменённые
       if (statusFilter === "history") {
         if (o.status !== "delivered" && o.status !== "cancelled") return false;
       } else if (statusFilter !== "all") {
         if (o.status !== statusFilter) return false;
       }
-
       if (search.trim()) {
         const q = search.trim().toLowerCase();
-        const haystack = [
-          o.botUser?.fullName,
-          o.botUser?.phone,
-          o.product?.name,
-        ]
+        const haystack = [o.botUser?.fullName, o.botUser?.phone, o.product?.name]
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
         if (!haystack.includes(q)) return false;
       }
-
       return true;
     });
   }, [orders, search, statusFilter]);
@@ -100,7 +106,6 @@ export default function ClientBotOrderHistory() {
       (o) => o.status === "delivered" || o.status === "cancelled"
     );
     const delivered = historyOrders.filter((o) => o.status === "delivered");
-    const totalQty = delivered.reduce((sum, o) => sum + (o.quantity || 0), 0);
     const totalSum = delivered.reduce(
       (sum, o) => sum + (o.product?.price || 0) * (o.quantity || 0),
       0
@@ -109,7 +114,6 @@ export default function ClientBotOrderHistory() {
       total: historyOrders.length,
       delivered: delivered.length,
       cancelled: historyOrders.filter((o) => o.status === "cancelled").length,
-      totalQty,
       totalSum,
     };
   }, [orders]);
@@ -130,31 +134,19 @@ export default function ClientBotOrderHistory() {
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <div className="rounded-xl bg-neutral-900 border border-neutral-800 p-4">
-            <p className="text-neutral-500 text-xs uppercase tracking-wide">
-              Всего в архиве
-            </p>
+            <p className="text-neutral-500 text-xs uppercase tracking-wide">Всего в архиве</p>
             <p className="text-2xl font-bold text-white mt-1">{stats.total}</p>
           </div>
           <div className="rounded-xl bg-neutral-900 border border-emerald-800/40 p-4">
-            <p className="text-neutral-500 text-xs uppercase tracking-wide">
-              Выполнено
-            </p>
-            <p className="text-2xl font-bold text-emerald-400 mt-1">
-              {stats.delivered}
-            </p>
+            <p className="text-neutral-500 text-xs uppercase tracking-wide">Выполнено</p>
+            <p className="text-2xl font-bold text-emerald-400 mt-1">{stats.delivered}</p>
           </div>
           <div className="rounded-xl bg-neutral-900 border border-red-800/40 p-4">
-            <p className="text-neutral-500 text-xs uppercase tracking-wide">
-              Отменено
-            </p>
-            <p className="text-2xl font-bold text-red-400 mt-1">
-              {stats.cancelled}
-            </p>
+            <p className="text-neutral-500 text-xs uppercase tracking-wide">Отменено</p>
+            <p className="text-2xl font-bold text-red-400 mt-1">{stats.cancelled}</p>
           </div>
           <div className="rounded-xl bg-neutral-900 border border-orange-800/40 p-4">
-            <p className="text-neutral-500 text-xs uppercase tracking-wide">
-              Выручка
-            </p>
+            <p className="text-neutral-500 text-xs uppercase tracking-wide">Выручка</p>
             <p className="text-xl font-bold text-orange-400 mt-1">
               {stats.totalSum > 0
                 ? `${stats.totalSum.toLocaleString("ru-RU")} сум`
@@ -223,14 +215,14 @@ export default function ClientBotOrderHistory() {
                     <th className="text-left font-medium px-4 py-3">Сумма</th>
                     <th className="text-left font-medium px-4 py-3">Статус</th>
                     <th className="text-left font-medium px-4 py-3">Дата</th>
+                    <th className="px-4 py-3 w-10"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-800/60">
                   {filtered.map((order) => {
-                    const status =
-                      STATUS_CONFIG[order.status] || STATUS_CONFIG.new;
-                    const sum =
-                      (order.product?.price || 0) * (order.quantity || 0);
+                    const status = STATUS_CONFIG[order.status] || STATUS_CONFIG.new;
+                    const sum = (order.product?.price || 0) * (order.quantity || 0);
+                    const isDeleting = deletingId === order._id;
                     return (
                       <tr
                         key={order._id}
@@ -270,6 +262,36 @@ export default function ClientBotOrderHistory() {
                         <td className="px-4 py-3 text-neutral-500 whitespace-nowrap text-xs">
                           {formatDate(order.createdAt)}
                         </td>
+                        {/* Delete button */}
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={(e) => deleteOrder(e, order._id)}
+                            disabled={isDeleting}
+                            className="p-1.5 rounded-lg text-neutral-600 hover:text-red-400 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
+                            title="Удалить"
+                          >
+                            {isDeleting ? (
+                              <span className="text-xs">...</span>
+                            ) : (
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-4 w-4"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <polyline points="3 6 5 6 21 6" />
+                                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                                <path d="M10 11v6" />
+                                <path d="M14 11v6" />
+                                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                              </svg>
+                            )}
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -290,12 +312,9 @@ export default function ClientBotOrderHistory() {
             className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6 max-w-md w-full shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal header */}
             <div className="flex items-start justify-between mb-5">
               <div>
-                <h3 className="text-lg font-semibold text-white">
-                  Детали заказа
-                </h3>
+                <h3 className="text-lg font-semibold text-white">Детали заказа</h3>
                 <p className="text-neutral-500 text-xs mt-0.5">
                   {formatDate(selected.createdAt)}
                 </p>
@@ -308,7 +327,6 @@ export default function ClientBotOrderHistory() {
               </button>
             </div>
 
-            {/* Status */}
             <div className="mb-5">
               <span
                 className={`inline-flex items-center text-xs font-medium px-3 py-1.5 rounded-full ${
@@ -319,7 +337,6 @@ export default function ClientBotOrderHistory() {
               </span>
             </div>
 
-            {/* Info rows */}
             <div className="space-y-3 text-sm">
               <div className="flex justify-between items-center py-2 border-b border-neutral-800">
                 <span className="text-neutral-500">Клиент</span>
@@ -336,16 +353,12 @@ export default function ClientBotOrderHistory() {
               <div className="flex justify-between items-center py-2 border-b border-neutral-800">
                 <span className="text-neutral-500">Username</span>
                 <span className="text-neutral-300">
-                  {selected.botUser?.username
-                    ? `@${selected.botUser.username}`
-                    : "—"}
+                  {selected.botUser?.username ? `@${selected.botUser.username}` : "—"}
                 </span>
               </div>
               <div className="flex justify-between items-center py-2 border-b border-neutral-800">
                 <span className="text-neutral-500">Товар</span>
-                <span className="text-neutral-100">
-                  {selected.product?.name || "—"}
-                </span>
+                <span className="text-neutral-100">{selected.product?.name || "—"}</span>
               </div>
               <div className="flex justify-between items-center py-2 border-b border-neutral-800">
                 <span className="text-neutral-500">Количество</span>
@@ -355,26 +368,18 @@ export default function ClientBotOrderHistory() {
                 <div className="flex justify-between items-center py-2 border-b border-neutral-800">
                   <span className="text-neutral-500">Сумма</span>
                   <span className="text-orange-400 font-semibold">
-                    {(
-                      selected.product.price * selected.quantity
-                    ).toLocaleString("ru-RU")}{" "}
-                    сум
+                    {(selected.product.price * selected.quantity).toLocaleString("ru-RU")} сум
                   </span>
                 </div>
               )}
               {selected.note && (
                 <div className="py-2 border-b border-neutral-800">
-                  <span className="text-neutral-500 block mb-1">
-                    Примечание
-                  </span>
-                  <span className="text-neutral-300 italic">
-                    "{selected.note}"
-                  </span>
+                  <span className="text-neutral-500 block mb-1">Примечание</span>
+                  <span className="text-neutral-300 italic">"{selected.note}"</span>
                 </div>
               )}
             </div>
 
-            {/* Map link */}
             {mapsLink(selected.location) && (
               <a
                 href={mapsLink(selected.location)}

@@ -55,9 +55,7 @@ export default function ClientBotOrders() {
       setError(null);
     } catch (err) {
       if (!silent)
-        setError(
-          err.response?.data?.message || "Ошибка при загрузке заказов"
-        );
+        setError(err.response?.data?.message || "Ошибка при загрузке заказов");
     } finally {
       if (!silent) setLoading(false);
     }
@@ -73,16 +71,13 @@ export default function ClientBotOrders() {
     setUpdatingId(id);
     try {
       await axios.put(`/api/bot/orders/${id}/status`, { status });
-      // Если статус "delivered" или "cancelled" — убираем из активных
       setOrders((prev) =>
         status === "delivered" || status === "cancelled"
           ? prev.filter((o) => o._id !== id)
           : prev.map((o) => (o._id === id ? { ...o, status } : o))
       );
     } catch (err) {
-      alert(
-        err.response?.data?.message || "Ошибка при обновлении статуса"
-      );
+      alert(err.response?.data?.message || "Ошибка при обновлении статуса");
     } finally {
       setUpdatingId(null);
     }
@@ -90,19 +85,12 @@ export default function ClientBotOrders() {
 
   const completeAll = async () => {
     if (!orders.length) return;
-    if (
-      !window.confirm(
-        `Завершить все ${orders.length} заказов?`
-      )
-    )
-      return;
+    if (!window.confirm(`Завершить все ${orders.length} заказов?`)) return;
     setBulkLoading(true);
     try {
       await Promise.all(
         orders.map((o) =>
-          axios.put(`/api/bot/orders/${o._id}/status`, {
-            status: "delivered",
-          })
+          axios.put(`/api/bot/orders/${o._id}/status`, { status: "delivered" })
         )
       );
       setOrders([]);
@@ -178,8 +166,7 @@ export default function ClientBotOrders() {
               const status = STATUS_CONFIG[order.status] || STATUS_CONFIG.new;
               const link = mapsLink(order.location);
               const isUpdating = updatingId === order._id;
-              const total =
-                (order.product?.price || 0) * (order.quantity || 0);
+              const total = (order.product?.price || 0) * (order.quantity || 0);
 
               return (
                 <div
@@ -272,36 +259,44 @@ export default function ClientBotOrders() {
                       </div>
 
                       {/* Right: action buttons */}
-                      <div className="flex flex-col gap-2 w-full sm:w-auto min-w-35">
-                        {order.status === "new" && (
-                          <button
-                            onClick={() =>
-                              updateStatus(order._id, "accepted")
-                            }
-                            disabled={isUpdating}
-                            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium transition-colors whitespace-nowrap"
-                          >
-                            ✅ Принять
-                          </button>
+                      <div className="flex flex-col gap-2 w-full sm:w-auto min-w-40">
+                        {order.status === "new" ? (
+                          <>
+                            {/* new: Принять заказ + Отменить */}
+                            <button
+                              onClick={() => updateStatus(order._id, "accepted")}
+                              disabled={isUpdating}
+                              className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium transition-colors whitespace-nowrap"
+                            >
+                              {isUpdating ? "..." : "✅ Принять заказ"}
+                            </button>
+                            <button
+                              onClick={() => updateStatus(order._id, "cancelled")}
+                              disabled={isUpdating}
+                              className="px-4 py-2 rounded-lg bg-neutral-800 hover:bg-red-900/40 border border-neutral-700 hover:border-red-700/50 text-neutral-400 hover:text-red-400 disabled:opacity-50 text-sm font-medium transition-colors whitespace-nowrap"
+                            >
+                              ✕ Отменить
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            {/* accepted: Выполнено + Отменить */}
+                            <button
+                              onClick={() => updateStatus(order._id, "delivered")}
+                              disabled={isUpdating}
+                              className="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-medium transition-colors whitespace-nowrap"
+                            >
+                              {isUpdating ? "..." : "🏁 Выполнено"}
+                            </button>
+                            <button
+                              onClick={() => updateStatus(order._id, "cancelled")}
+                              disabled={isUpdating}
+                              className="px-4 py-2 rounded-lg bg-neutral-800 hover:bg-red-900/40 border border-neutral-700 hover:border-red-700/50 text-neutral-400 hover:text-red-400 disabled:opacity-50 text-sm font-medium transition-colors whitespace-nowrap"
+                            >
+                              ✕ Отменить
+                            </button>
+                          </>
                         )}
-                        <button
-                          onClick={() =>
-                            updateStatus(order._id, "delivered")
-                          }
-                          disabled={isUpdating}
-                          className="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-medium transition-colors whitespace-nowrap"
-                        >
-                          {isUpdating ? "..." : "🏁 Выполнено"}
-                        </button>
-                        <button
-                          onClick={() =>
-                            updateStatus(order._id, "cancelled")
-                          }
-                          disabled={isUpdating}
-                          className="px-4 py-2 rounded-lg bg-neutral-800 hover:bg-red-900/40 border border-neutral-700 hover:border-red-700/50 text-neutral-400 hover:text-red-400 disabled:opacity-50 text-sm font-medium transition-colors whitespace-nowrap"
-                        >
-                          ✕ Отмена
-                        </button>
                       </div>
                     </div>
                   </div>

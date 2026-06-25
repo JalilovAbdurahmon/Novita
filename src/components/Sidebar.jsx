@@ -1,10 +1,58 @@
 import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useOrderNotifications } from "../utils/useOrderNotifications";
+import { useClientOrderNotifications } from "../utils/useClientOrderNotifications";
+
+const BellIcon = ({ unreadCount, color = "amber" }) => {
+  const colorMap = {
+    amber: {
+      active: "text-amber-400",
+      inactive: "text-slate-600",
+      badge: "bg-amber-500 shadow-amber-500/40",
+      ping: "bg-amber-500",
+    },
+    teal: {
+      active: "text-teal-400",
+      inactive: "text-slate-600",
+      badge: "bg-teal-500 shadow-teal-500/40",
+      ping: "bg-teal-500",
+    },
+  };
+
+  const c = colorMap[color];
+
+  return (
+    <span className="relative flex items-center">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        className={`w-5 h-5 transition-colors duration-300 ${
+          unreadCount > 0 ? c.active : c.inactive
+        } ${unreadCount > 0 ? "animate-[wiggle_0.6s_ease-in-out]" : ""}`}
+      >
+        <path d="M5.85 3.5a.75.75 0 0 0-1.117-1 9.719 9.719 0 0 0-2.348 4.876.75.75 0 0 0 1.479.248A8.219 8.219 0 0 1 5.85 3.5ZM19.267 2.5a.75.75 0 1 0-1.118 1 8.22 8.22 0 0 1 1.987 4.124.75.75 0 0 0 1.48-.248A9.72 9.72 0 0 0 19.266 2.5Z" />
+        <path
+          fillRule="evenodd"
+          d="M12 2.25A6.75 6.75 0 0 0 5.25 9v.75a8.217 8.217 0 0 1-2.119 5.52.75.75 0 0 0 .298 1.206c1.544.57 3.16.99 4.831 1.243a3.75 3.75 0 1 0 7.48 0 24.583 24.583 0 0 0 4.83-1.244.75.75 0 0 0 .298-1.205 8.217 8.217 0 0 1-2.118-5.52V9A6.75 6.75 0 0 0 12 2.25ZM9.75 18c0-.034 0-.067.002-.1a25.05 25.05 0 0 0 4.496 0l.002.1a2.25 2.25 0 1 1-4.5 0Z"
+          clipRule="evenodd"
+        />
+      </svg>
+      {unreadCount > 0 && (
+        <span
+          className={`absolute -top-2 -right-2 min-w-4.5 h-4.5 px-1 rounded-full ${c.badge} text-black text-[10px] font-black flex items-center justify-center leading-none shadow-lg animate-bounce`}
+        >
+          {unreadCount > 99 ? "99+" : unreadCount}
+        </span>
+      )}
+    </span>
+  );
+};
 
 const Sidebar = () => {
   const navigate = useNavigate();
   const { unreadCount } = useOrderNotifications();
+  const { unreadCount: clientUnreadCount } = useClientOrderNotifications();
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -64,6 +112,7 @@ const Sidebar = () => {
             )}
           </NavLink>
 
+          {/* Активные заказы — amber bell (eski) */}
           <NavLink to="/activeOrder" className={linkClass}>
             {({ isActive }) => (
               <>
@@ -74,30 +123,7 @@ const Sidebar = () => {
                   ⏳
                 </span>
                 <span className="flex-1">Активные заказы</span>
-                <span className="relative flex items-center">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                    className={`w-5 h-5 transition-colors duration-300 ${
-                      unreadCount > 0
-                        ? "text-amber-400 animate-[wiggle_0.6s_ease-in-out]"
-                        : "text-slate-600"
-                    }`}
-                  >
-                    <path d="M5.85 3.5a.75.75 0 0 0-1.117-1 9.719 9.719 0 0 0-2.348 4.876.75.75 0 0 0 1.479.248A8.219 8.219 0 0 1 5.85 3.5ZM19.267 2.5a.75.75 0 1 0-1.118 1 8.22 8.22 0 0 1 1.987 4.124.75.75 0 0 0 1.48-.248A9.72 9.72 0 0 0 19.266 2.5Z" />
-                    <path
-                      fillRule="evenodd"
-                      d="M12 2.25A6.75 6.75 0 0 0 5.25 9v.75a8.217 8.217 0 0 1-2.119 5.52.75.75 0 0 0 .298 1.206c1.544.57 3.16.99 4.831 1.243a3.75 3.75 0 1 0 7.48 0 24.583 24.583 0 0 0 4.83-1.244.75.75 0 0 0 .298-1.205 8.217 8.217 0 0 1-2.118-5.52V9A6.75 6.75 0 0 0 12 2.25ZM9.75 18c0-.034 0-.067.002-.1a25.05 25.05 0 0 0 4.496 0l.002.1a2.25 2.25 0 1 1-4.5 0Z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  {unreadCount > 0 && (
-                    <span className="absolute -top-2 -right-2 min-w-4.5 h-4.5 px-1 rounded-full bg-amber-500 text-black text-[10px] font-black flex items-center justify-center leading-none shadow-lg shadow-amber-500/40 animate-bounce">
-                      {unreadCount > 99 ? "99+" : unreadCount}
-                    </span>
-                  )}
-                </span>
+                <BellIcon unreadCount={unreadCount} color="amber" />
               </>
             )}
           </NavLink>
@@ -117,7 +143,7 @@ const Sidebar = () => {
           </NavLink>
         </nav>
 
-        {/* Разделитель + блок заказов из Telegram-бота */}
+        {/* Telegram bot bo'limi */}
         <div className="flex items-center gap-2 px-2 mt-6 mb-2">
           <div className="h-px flex-1 bg-slate-800/60" />
           <span className="text-[10px] text-slate-600 font-semibold tracking-widest uppercase">
@@ -127,6 +153,7 @@ const Sidebar = () => {
         </div>
 
         <nav className="flex flex-col gap-2">
+          {/* Заказы клиентов — teal bell (yangi) */}
           <NavLink to="/clientOrder" className={linkClass}>
             {({ isActive }) => (
               <>
@@ -136,7 +163,8 @@ const Sidebar = () => {
                 <span className="text-lg transition-transform duration-300 group-hover:scale-110">
                   📦
                 </span>
-                <span>Заказы клиентов</span>
+                <span className="flex-1">Заказы клиентов</span>
+                <BellIcon unreadCount={clientUnreadCount} color="teal" />
               </>
             )}
           </NavLink>

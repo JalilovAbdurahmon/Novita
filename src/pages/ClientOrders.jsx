@@ -213,4 +213,4 @@ const ClientOrders = () => {
   );
 };
 
-export default ClientBotOrders;
+export default ClientOrders;

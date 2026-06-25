@@ -2,17 +2,23 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "../utils/axios";
 import { notificationBus } from "./notificationBus";
 
-const CLIENT_KNOWN_IDS_KEY = "client_orders_known_ids"; // activeOrder kalit bilan FARQ qiladi
+const CLIENT_KNOWN_IDS_KEY = "client_orders_known_ids";
 const POLL_INTERVAL = 3000;
 
 export const useClientOrderNotifications = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const intervalRef = useRef(null);
 
+  // ClientBotOrders.jsx bilan bir xil: res.data?.data ?? res.data
+  const parseOrders = (res) => {
+    const raw = res.data?.data ?? res.data;
+    return Array.isArray(raw) ? raw : [];
+  };
+
   const checkNewOrders = useCallback(async () => {
     try {
       const res = await axios.get("/api/bot/orders");
-      const orders = res.data || [];
+      const orders = parseOrders(res);
 
       // Faqat "new" statusdagilarni hisoblaymiz
       const newStatusOrders = orders.filter((o) => o.status === "new");
@@ -54,7 +60,7 @@ export const useClientOrderNotifications = () => {
   const markAllSeen = useCallback(async () => {
     try {
       const res = await axios.get("/api/bot/orders");
-      const orders = res.data || [];
+      const orders = parseOrders(res);
       const newStatusOrders = orders.filter((o) => o.status === "new");
       localStorage.setItem(
         CLIENT_KNOWN_IDS_KEY,

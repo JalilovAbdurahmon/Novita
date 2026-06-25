@@ -39,8 +39,12 @@ const Sidebar = () => {
           <NavLink to="/home" className={linkClass}>
             {({ isActive }) => (
               <>
-                {isActive && <div className="absolute left-0 w-1 h-6 bg-cyan-400 rounded-r-full" />}
-                <span className="text-lg transition-transform duration-300 group-hover:scale-110">🏠</span>
+                {isActive && (
+                  <div className="absolute left-0 w-1 h-6 bg-cyan-400 rounded-r-full" />
+                )}
+                <span className="text-lg transition-transform duration-300 group-hover:scale-110">
+                  🏠
+                </span>
                 <span>Главная</span>
               </>
             )}
@@ -49,8 +53,12 @@ const Sidebar = () => {
           <NavLink to="/createOrder" className={linkClass}>
             {({ isActive }) => (
               <>
-                {isActive && <div className="absolute left-0 w-1 h-6 bg-cyan-400 rounded-r-full" />}
-                <span className="text-lg transition-transform duration-300 group-hover:scale-110">➕</span>
+                {isActive && (
+                  <div className="absolute left-0 w-1 h-6 bg-cyan-400 rounded-r-full" />
+                )}
+                <span className="text-lg transition-transform duration-300 group-hover:scale-110">
+                  ➕
+                </span>
                 <span>Создать заказ</span>
               </>
             )}
@@ -59,8 +67,12 @@ const Sidebar = () => {
           <NavLink to="/activeOrder" className={linkClass}>
             {({ isActive }) => (
               <>
-                {isActive && <div className="absolute left-0 w-1 h-6 bg-cyan-400 rounded-r-full" />}
-                <span className="text-lg transition-transform duration-300 group-hover:scale-110">⏳</span>
+                {isActive && (
+                  <div className="absolute left-0 w-1 h-6 bg-cyan-400 rounded-r-full" />
+                )}
+                <span className="text-lg transition-transform duration-300 group-hover:scale-110">
+                  ⏳
+                </span>
                 <span className="flex-1">Активные заказы</span>
                 <span className="relative flex items-center">
                   <svg
@@ -68,7 +80,9 @@ const Sidebar = () => {
                     viewBox="0 0 24 24"
                     fill="currentColor"
                     className={`w-5 h-5 transition-colors duration-300 ${
-                      unreadCount > 0 ? "text-amber-400 animate-[wiggle_0.6s_ease-in-out]" : "text-slate-600"
+                      unreadCount > 0
+                        ? "text-amber-400 animate-[wiggle_0.6s_ease-in-out]"
+                        : "text-slate-600"
                     }`}
                   >
                     <path d="M5.85 3.5a.75.75 0 0 0-1.117-1 9.719 9.719 0 0 0-2.348 4.876.75.75 0 0 0 1.479.248A8.219 8.219 0 0 1 5.85 3.5ZM19.267 2.5a.75.75 0 1 0-1.118 1 8.22 8.22 0 0 1 1.987 4.124.75.75 0 0 0 1.48-.248A9.72 9.72 0 0 0 19.266 2.5Z" />
@@ -91,9 +105,52 @@ const Sidebar = () => {
           <NavLink to="/historyOrder" className={linkClass}>
             {({ isActive }) => (
               <>
-                {isActive && <div className="absolute left-0 w-1 h-6 bg-cyan-400 rounded-r-full" />}
-                <span className="text-lg transition-transform duration-300 group-hover:scale-110">📜</span>
+                {isActive && (
+                  <div className="absolute left-0 w-1 h-6 bg-cyan-400 rounded-r-full" />
+                )}
+                <span className="text-lg transition-transform duration-300 group-hover:scale-110">
+                  📜
+                </span>
                 <span>История заказов</span>
+              </>
+            )}
+          </NavLink>
+        </nav>
+
+        {/* Разделитель + блок заказов из Telegram-бота */}
+        <div className="flex items-center gap-2 px-2 mt-6 mb-2">
+          <div className="h-px flex-1 bg-slate-800/60" />
+          <span className="text-[10px] text-slate-600 font-semibold tracking-widest uppercase">
+            Telegram бот
+          </span>
+          <div className="h-px flex-1 bg-slate-800/60" />
+        </div>
+
+        <nav className="flex flex-col gap-2">
+          <NavLink to="/clientOrder" className={linkClass}>
+            {({ isActive }) => (
+              <>
+                {isActive && (
+                  <div className="absolute left-0 w-1 h-6 bg-cyan-400 rounded-r-full" />
+                )}
+                <span className="text-lg transition-transform duration-300 group-hover:scale-110">
+                  📦
+                </span>
+                <span>Заказы клиентов</span>
+              </>
+            )}
+          </NavLink>
+
+          <NavLink to="/clientHistory" className={linkClass}>
+            {({ isActive }) => (
+              <>
+                {isActive && (
+                  <div className="absolute left-0 w-1 h-6 bg-cyan-400 rounded-r-full" />
+                )}
+                <span className="text-lg transition-transform duration-300 group-hover:scale-110">
+                  🗂️
+                </span>
+                <span>История клиентов</span>
               </>
             )}
           </NavLink>
@@ -104,7 +161,9 @@ const Sidebar = () => {
         onClick={handleLogout}
         className="w-full py-3 bg-slate-900/60 hover:bg-red-950/30 border border-slate-800 hover:border-red-900/40 text-slate-400 hover:text-red-400 font-medium rounded-xl transition-all duration-300 flex items-center justify-center gap-2.5 group"
       >
-        <span className="transition-transform duration-300 group-hover:-translate-x-0.5">🚪</span>
+        <span className="transition-transform duration-300 group-hover:-translate-x-0.5">
+          🚪
+        </span>
         <span className="text-[14px]">Выйти из системы</span>
       </button>
     </div>

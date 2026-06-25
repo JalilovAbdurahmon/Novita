@@ -9,6 +9,8 @@ import ActiveOrders from "./pages/ActiveOrder";
 import OrderHistory from "./pages/HIstoryOrder";
 import { Toaster } from "react-hot-toast";
 import MiniApp from "./pages/MiniApp";
+import ClientOrders from "./pages/ClientOrders";
+import ClientHistory from "./pages/ClientHistory";
 
 const App = () => {
   return (
@@ -22,6 +24,8 @@ const App = () => {
           <Route path="/createOrder" element={<CreateOrder />} />
           <Route path="/activeOrder" element={<ActiveOrders />} />
           <Route path="/historyOrder" element={<OrderHistory />} />
+          <Route path="/clientOrder" element={<ClientOrders />} />
+          <Route path="/clientHistory" element={<ClientHistory />} />
         </Route>
       </Routes>
     </div>

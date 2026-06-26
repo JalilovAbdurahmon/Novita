@@ -5,27 +5,25 @@ import { useClientOrderNotifications } from "../utils/useClientOrderNotification
 
 const STATUS_CONFIG = {
   new: {
-    label: "Новый",
+    label: "Ожидание",
     dot: "bg-orange-500",
     badge: "bg-orange-500/15 text-orange-400 border border-orange-500/30",
-    bar: "bg-orange-500",
   },
   accepted: {
-    label: "Принят",
+    label: "Заказ принят",
     dot: "bg-blue-500",
     badge: "bg-blue-500/15 text-blue-400 border border-blue-500/30",
-    bar: "bg-blue-500",
   },
 };
 
-function timeAgo(dateStr) {
-  const diffMs = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return "только что";
-  if (mins < 60) return `${mins} мин назад`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} ч назад`;
-  return new Date(dateStr).toLocaleDateString("ru-RU");
+function formatDateTime(dateStr) {
+  const d = new Date(dateStr);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  const hours = String(d.getHours()).padStart(2, "0");
+  const mins = String(d.getMinutes()).padStart(2, "0");
+  return `${day}.${month}.${year},${hours}:${mins}`;
 }
 
 function formatPhone(phone) {
@@ -48,68 +46,97 @@ function mapsLink(location) {
 
 const formatPrice = (num) => (num || 0).toLocaleString("ru-RU");
 
+const TOAST_STYLE = `
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-16px) scale(0.95); }
+    to   { opacity: 1; transform: translateY(0)     scale(1);    }
+  }
+  @keyframes fadeOut {
+    from { opacity: 1; transform: scale(1);    }
+    to   { opacity: 0; transform: scale(0.95); }
+  }
+`;
+
 // ─── Иконки ────────────────────────────────────────────────────────────────
-const CheckIcon = ({ className = "w-4 h-4" }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <polyline points="20 6 9 17 4 12" />
-  </svg>
-);
+function CheckIcon({ className = "w-4 h-4" }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
 
-const FlagIcon = ({ className = "w-4 h-4" }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
-    <line x1="4" y1="22" x2="4" y2="15" />
-  </svg>
-);
+function FlagIcon({ className = "w-4 h-4" }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+      <line x1="4" y1="22" x2="4" y2="15" />
+    </svg>
+  );
+}
 
-const XIcon = ({ className = "w-4 h-4" }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <line x1="18" y1="6" x2="6" y2="18" />
-    <line x1="6" y1="6" x2="18" y2="18" />
-  </svg>
-);
+function XIcon({ className = "w-4 h-4" }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
 
-// ─── Toast-подтверждение отмены заказа ──────────────────────────────────────
+function CircleXIcon({ className = "w-5 h-5" }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="15" y1="9" x2="9" y2="15" />
+      <line x1="9" y1="9" x2="15" y2="15" />
+    </svg>
+  );
+}
+
+// ─── Toast отмены заказа ─────────────────────────────────────────────────────
 function confirmCancelToast(message = "Отменить этот заказ?") {
   return new Promise((resolve) => {
     toast.custom(
       (t) => (
         <div
-          className={`${
-            t.visible ? "animate-in fade-in" : "opacity-0"
-          } max-w-sm w-full bg-[#15171f] border border-slate-700 shadow-2xl rounded-2xl p-4 flex flex-col gap-3`}
+          style={{
+            animation: t.visible
+              ? "slideDown 0.35s cubic-bezier(0.34,1.56,0.64,1)"
+              : "fadeOut 0.2s ease forwards",
+          }}
+          className="max-w-sm w-full bg-[#13151e] border border-slate-700/80 shadow-2xl shadow-black/60 rounded-2xl overflow-hidden"
         >
-          <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
-              <XIcon className="w-4.5 h-4.5 text-rose-400" />
+          <style>{TOAST_STYLE}</style>
+          <div className="h-0.5 w-full bg-linear-to-r from-rose-600 via-rose-400 to-transparent" />
+          <div className="p-5 flex flex-col gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/25 flex items-center justify-center shrink-0">
+                <CircleXIcon className="w-5 h-5 text-rose-400" />
+              </div>
+              <div className="pt-0.5">
+                <p className="text-sm font-bold text-slate-100 leading-snug">{message}</p>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Клиент получит уведомление об отмене заказа.
+                </p>
+              </div>
             </div>
-            <div className="flex-1 pt-1">
-              <p className="text-sm font-bold text-slate-100">{message}</p>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Клиент будет уведомлён об отмене.
-              </p>
+            <div className="h-px bg-slate-800" />
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => { toast.dismiss(t.id); resolve(false); }}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700/80 text-slate-400 hover:text-slate-200 border border-slate-700 transition-all duration-150"
+              >
+                Назад
+              </button>
+              <button
+                onClick={() => { toast.dismiss(t.id); resolve(true); }}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-linear-to-r from-rose-600 to-rose-500 hover:from-rose-500 hover:to-rose-400 text-white shadow-lg shadow-rose-900/40 transition-all duration-150 flex items-center gap-1.5"
+              >
+                <XIcon className="w-3.5 h-3.5" />
+                Отменить заказ
+              </button>
             </div>
-          </div>
-          <div className="flex items-center justify-end gap-2">
-            <button
-              onClick={() => {
-                toast.dismiss(t.id);
-                resolve(false);
-              }}
-              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all"
-            >
-              Назад
-            </button>
-            <button
-              onClick={() => {
-                toast.dismiss(t.id);
-                resolve(true);
-              }}
-              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-900/30 transition-all flex items-center gap-1.5"
-            >
-              <XIcon className="w-3.5 h-3.5" />
-              Отменить заказ
-            </button>
           </div>
         </div>
       ),
@@ -118,49 +145,51 @@ function confirmCancelToast(message = "Отменить этот заказ?") {
   });
 }
 
-// ─── Toast-подтверждение завершения всех заказов ────────────────────────────
+// ─── Toast завершения всех заказов ───────────────────────────────────────────
 function confirmCompleteAllToast(count) {
   return new Promise((resolve) => {
     toast.custom(
       (t) => (
         <div
-          className={`${
-            t.visible ? "animate-in fade-in" : "opacity-0"
-          } max-w-sm w-full bg-[#15171f] border border-slate-700 shadow-2xl rounded-2xl p-4 flex flex-col gap-3`}
+          style={{
+            animation: t.visible
+              ? "slideDown 0.35s cubic-bezier(0.34,1.56,0.64,1)"
+              : "fadeOut 0.2s ease forwards",
+          }}
+          className="max-w-sm w-full bg-[#13151e] border border-slate-700/80 shadow-2xl shadow-black/60 rounded-2xl overflow-hidden"
         >
-          <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
-              <FlagIcon className="w-4.5 h-4.5 text-emerald-400" />
+          <style>{TOAST_STYLE}</style>
+          <div className="h-0.5 w-full bg-linear-to-r from-emerald-500 via-teal-400 to-transparent" />
+          <div className="p-5 flex flex-col gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center shrink-0">
+                <FlagIcon className="w-5 h-5 text-emerald-400" />
+              </div>
+              <div className="pt-0.5">
+                <p className="text-sm font-bold text-slate-100 leading-snug">
+                  Завершить все {count} заказов?
+                </p>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Все активные заказы будут отмечены как выполненные.
+                </p>
+              </div>
             </div>
-            <div className="flex-1 pt-1">
-              <p className="text-sm font-bold text-slate-100">
-                Завершить все {count} заказов?
-              </p>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Все активные заказы будут отмечены как выполненные.
-              </p>
+            <div className="h-px bg-slate-800" />
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => { toast.dismiss(t.id); resolve(false); }}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700/80 text-slate-400 hover:text-slate-200 border border-slate-700 transition-all duration-150"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={() => { toast.dismiss(t.id); resolve(true); }}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-linear-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white shadow-lg shadow-emerald-900/40 transition-all duration-150 flex items-center gap-1.5"
+              >
+                <FlagIcon className="w-3.5 h-3.5" />
+                Завершить все
+              </button>
             </div>
-          </div>
-          <div className="flex items-center justify-end gap-2">
-            <button
-              onClick={() => {
-                toast.dismiss(t.id);
-                resolve(false);
-              }}
-              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all"
-            >
-              Отмена
-            </button>
-            <button
-              onClick={() => {
-                toast.dismiss(t.id);
-                resolve(true);
-              }}
-              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/30 transition-all flex items-center gap-1.5"
-            >
-              <FlagIcon className="w-3.5 h-3.5" />
-              Завершить все
-            </button>
           </div>
         </div>
       ),
@@ -169,6 +198,7 @@ function confirmCompleteAllToast(count) {
   });
 }
 
+// ─── Главный компонент ────────────────────────────────────────────────────────
 export default function ClientOrders() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -179,27 +209,30 @@ export default function ClientOrders() {
 
   const { markAllSeen } = useClientOrderNotifications();
 
-  const fetchOrders = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    try {
-      const res = await axios.get("/api/bot/orders");
-      const raw = res.data?.data ?? res.data;
-      const all = Array.isArray(raw) ? raw : [];
-      const active = all.filter(
-        (o) => o.status === "new" || o.status === "accepted"
-      );
-      setOrders(active);
-      setError(null);
-      if (active.length > 0 && !selectedOrderId) {
-        setSelectedOrderId(active[0]._id);
+  const fetchOrders = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true);
+      try {
+        const res = await axios.get("/api/bot/orders");
+        const raw = res.data?.data ?? res.data;
+        const all = Array.isArray(raw) ? raw : [];
+        const active = all.filter(
+          (o) => o.status === "new" || o.status === "accepted"
+        );
+        setOrders(active);
+        setError(null);
+        if (active.length > 0 && !selectedOrderId) {
+          setSelectedOrderId(active[0]._id);
+        }
+      } catch (err) {
+        if (!silent)
+          setError(err.response?.data?.message || "Ошибка при загрузке заказов");
+      } finally {
+        if (!silent) setLoading(false);
       }
-    } catch (err) {
-      if (!silent)
-        setError(err.response?.data?.message || "Ошибка при загрузке заказов");
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }, [selectedOrderId]);
+    },
+    [selectedOrderId]
+  );
 
   useEffect(() => {
     fetchOrders();
@@ -278,6 +311,7 @@ export default function ClientOrders() {
 
   return (
     <div className="max-w-6xl mx-auto p-2 flex flex-col gap-6 select-none">
+
       {/* HEADER */}
       <div className="backdrop-blur-sm p-1 flex items-start justify-between gap-4 flex-wrap">
         <div>
@@ -286,19 +320,16 @@ export default function ClientOrders() {
           </h1>
           <p className="text-sm text-slate-500 mt-1.5 font-medium">
             Активные заказы из Telegram бота.{" "}
-            <span className="text-orange-400 font-bold">
-              Кликните на строку
-            </span>
+            <span className="text-orange-400 font-bold">Кликните на строку</span>
             , чтобы выделить заказ.
           </p>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          {/* Stats badges */}
           {orders.length > 0 && (
             <>
               <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl px-3 py-2 text-center">
-                <div className="text-[9px] text-slate-500 uppercase tracking-wider font-bold">Новых</div>
+                <div className="text-[9px] text-slate-500 uppercase tracking-wider font-bold">Ожидание</div>
                 <div className="text-orange-400 font-black font-mono text-base leading-tight">{newCount}</div>
               </div>
               <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl px-3 py-2 text-center">
@@ -307,7 +338,9 @@ export default function ClientOrders() {
               </div>
               <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2 text-center">
                 <div className="text-[9px] text-slate-500 uppercase tracking-wider font-bold">Сумма</div>
-                <div className="text-emerald-400 font-black font-mono text-sm leading-tight">{formatPrice(totalSum)} сум</div>
+                <div className="text-emerald-400 font-black font-mono text-sm leading-tight">
+                  {formatPrice(totalSum)} сум
+                </div>
               </div>
             </>
           )}
@@ -343,7 +376,7 @@ export default function ClientOrders() {
 
       {/* TABLE */}
       <div className="bg-[#0f111a] border border-slate-800/80 rounded-2xl overflow-hidden shadow-2xl overflow-x-auto">
-        <table className="w-full text-left border-collapse min-w-200">
+        <table className="w-full text-left border-collapse min-w-225">
           <thead>
             <tr className="border-b border-slate-800 bg-slate-900/40 text-slate-400 text-xs font-bold uppercase tracking-wider">
               <th className="p-4">Клиент 👤</th>
@@ -355,6 +388,7 @@ export default function ClientOrders() {
               <th className="p-4 text-center">Действие</th>
             </tr>
           </thead>
+
           <tbody className="divide-y divide-slate-800/50 text-[14px]">
             {loading ? (
               Array.from({ length: 3 }).map((_, i) => (
@@ -381,6 +415,7 @@ export default function ClientOrders() {
                 const isUpdating = updatingId === order._id;
                 const total = (order.product?.price || 0) * (order.quantity || 0);
                 const link = mapsLink(order.location);
+                const [datePart, timePart] = formatDateTime(order.createdAt).split(",");
 
                 return (
                   <tr
@@ -416,7 +451,7 @@ export default function ClientOrders() {
                       </span>
                       {order.note && (
                         <div className="text-[11px] text-slate-500 italic mt-0.5">
-                          "{order.note}"
+                          &quot;{order.note}&quot;
                         </div>
                       )}
                     </td>
@@ -443,8 +478,13 @@ export default function ClientOrders() {
                     </td>
 
                     {/* Время */}
-                    <td className="p-4 align-middle text-slate-500 text-xs font-mono whitespace-nowrap">
-                      {timeAgo(order.createdAt)}
+                    <td className="p-4 align-middle whitespace-nowrap">
+                      <div className="text-slate-300 text-xs font-semibold font-mono">
+                        {datePart}
+                      </div>
+                      <div className="text-slate-500 text-xs font-mono mt-0.5">
+                        {timePart}
+                      </div>
                     </td>
 
                     {/* Локация */}
@@ -532,10 +572,7 @@ export default function ClientOrders() {
           {orders.length > 0 && (
             <tfoot>
               <tr className="border-t border-slate-700/60 bg-slate-900/30">
-                <td
-                  colSpan={2}
-                  className="p-4 text-xs text-slate-500 font-bold uppercase tracking-wider"
-                >
+                <td colSpan={2} className="p-4 text-xs text-slate-500 font-bold uppercase tracking-wider">
                   Всего заказов: {orders.length}
                 </td>
                 <td className="p-4">

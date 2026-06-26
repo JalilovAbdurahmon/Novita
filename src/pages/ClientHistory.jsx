@@ -414,9 +414,6 @@ export default function ClientHistory() {
           className="px-4 py-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-100 focus:outline-none focus:border-cyan-500/50 text-[13px] transition-all cursor-pointer"
         >
           <option value="history">История (выполн. + отменён.)</option>
-          <option value="all">Все заказы</option>
-          <option value="new">Новые</option>
-          <option value="accepted">Принятые</option>
           <option value="delivered">Выполненные</option>
           <option value="cancelled">Отменённые</option>
         </select>

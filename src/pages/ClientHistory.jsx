@@ -52,7 +52,7 @@ function mapsLink(location) {
 
 const formatPrice = (num) => (num || 0).toLocaleString("ru-RU");
 
-// ─── Icons ──────────────────────────────────────────────────────────────────
+// ─── Icons ───────────────────────────────────────────────────────────────────
 const TrashIcon = ({ className = "w-4 h-4" }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
     strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -79,7 +79,7 @@ const SearchIcon = ({ className = "w-4 h-4" }) => (
   </svg>
 );
 
-// ─── Animated Toast Confirm ──────────────────────────────────────────────────
+// ─── Animated Toast Confirm ───────────────────────────────────────────────────
 function confirmDeleteToast(message = "Удалить этот заказ из истории?") {
   return new Promise((resolve) => {
     toast.custom(
@@ -103,7 +103,6 @@ function confirmDeleteToast(message = "Удалить этот заказ из �
             }
           `}</style>
           <div className="bg-[#12141e] border border-slate-700/80 shadow-2xl shadow-black/60 rounded-2xl overflow-hidden">
-            {/* top accent line */}
             <div className="h-0.5 w-full bg-linear-to-r from-rose-500 via-rose-400 to-pink-500" />
             <div className="p-4 flex flex-col gap-4">
               <div className="flex items-center gap-3">
@@ -139,7 +138,7 @@ function confirmDeleteToast(message = "Удалить этот заказ из �
   });
 }
 
-// ─── Success / Error Toast helper ───────────────────────────────────────────
+// ─── Success / Error Toast helper ────────────────────────────────────────────
 function showAnimatedToast(message, type = "success") {
   toast.custom(
     (t) => (
@@ -268,7 +267,7 @@ const DetailModal = ({ order, onClose }) => {
             ))}
           </div>
 
-          {/* Divider for price summary */}
+          {/* Price summary */}
           {total > 0 && unitPrice > 0 && (
             <div className="rounded-xl bg-linear-to-r from-orange-500/10 to-violet-500/10 border border-orange-500/15 px-4 py-3 flex items-center justify-between">
               <span className="text-xs text-slate-400 font-bold">
@@ -317,6 +316,22 @@ const FilterTab = ({ value, current, onChange, children, color = "cyan" }) => {
   );
 };
 
+// ─── Stat Card ────────────────────────────────────────────────────────────────
+const StatCard = ({ label, value, unit, bg, border, text, dot }) => (
+  <div className={`${bg} ${border} border rounded-2xl px-4 py-3.5 flex flex-col gap-2 flex-1 min-w-30`}>
+    <div className="flex items-center gap-1.5">
+      <span className={`w-2 h-2 rounded-full ${dot} shrink-0`} />
+      <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold leading-none">
+        {label}
+      </span>
+    </div>
+    <div className={`font-black font-mono leading-tight ${text} flex items-baseline gap-1`}>
+      <span className="text-xl">{value}</span>
+      <span className="text-xs font-bold opacity-60">{unit}</span>
+    </div>
+  </div>
+);
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function ClientHistory() {
   const [orders, setOrders] = useState([]);
@@ -326,7 +341,6 @@ export default function ClientHistory() {
   const [statusFilter, setStatusFilter] = useState("history");
   const [selected, setSelected] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
-  const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -359,7 +373,6 @@ export default function ClientHistory() {
       await axios.delete(`/api/bot/orders/${id}`);
       setOrders((prev) => prev.filter((o) => o._id !== id));
       if (selected?._id === id) setSelected(null);
-      if (selectedOrderId === id) setSelectedOrderId(null);
       showAnimatedToast("Заказ удалён из истории", "success");
     } catch (err) {
       showAnimatedToast(err.response?.data?.message || "Ошибка при удалении заказа", "error");
@@ -411,41 +424,68 @@ export default function ClientHistory() {
 
   const historyOrders = orders.filter((o) => o.status === "delivered" || o.status === "cancelled");
   const deliveredOrders = historyOrders.filter((o) => o.status === "delivered");
+  const cancelledOrders = historyOrders.filter((o) => o.status === "cancelled");
   const totalSum = deliveredOrders.reduce((sum, o) => sum + (o.product?.price || 0) * (o.quantity || 0), 0);
+
+  const statCards = [
+    {
+      label: "В архиве",
+      value: historyOrders.length,
+      unit: "шт",
+      bg: "bg-violet-500/10",
+      border: "border-violet-500/25",
+      text: "text-violet-400",
+      dot: "bg-violet-400",
+    },
+    {
+      label: "Выполнено",
+      value: deliveredOrders.length,
+      unit: "шт",
+      bg: "bg-emerald-500/10",
+      border: "border-emerald-500/25",
+      text: "text-emerald-400",
+      dot: "bg-emerald-400",
+    },
+    {
+      label: "Отменено",
+      value: cancelledOrders.length,
+      unit: "шт",
+      bg: "bg-rose-500/10",
+      border: "border-rose-500/25",
+      text: "text-rose-400",
+      dot: "bg-rose-400",
+    },
+    {
+      label: "Выручка",
+      value: formatPrice(totalSum),
+      unit: "сум",
+      bg: "bg-orange-500/10",
+      border: "border-orange-500/25",
+      text: "text-orange-400",
+      dot: "bg-orange-400",
+    },
+  ];
 
   return (
     <div className="max-w-7xl mx-auto p-4 flex flex-col gap-6 select-none text-slate-200">
 
       {/* HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 pb-2">
+      <div className="flex flex-col gap-4 pb-2">
         <div>
           <h1 className="text-3xl font-black text-cyan-400 tracking-wide">История клиентов</h1>
           <p className="text-sm text-slate-500 mt-1 font-medium">
             Архив заказов из Telegram бота.{" "}
-            <span className="text-cyan-400 font-bold">Кликните на строку</span>, чтобы увидеть детали.
+            <span className="text-cyan-400 font-bold">Нажмите 👁 </span>
+            чтобы увидеть детали заказа.
           </p>
         </div>
 
+        {/* ── STAT CARDS ── */}
         {historyOrders.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="bg-violet-500/10 border border-violet-500/20 rounded-xl px-4 py-2 text-center">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">В архиве</div>
-              <div className="text-violet-400 font-black font-mono text-base leading-tight">{historyOrders.length} шт</div>
-            </div>
-            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-2 text-center">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Выполнено</div>
-              <div className="text-emerald-400 font-black font-mono text-base leading-tight">{deliveredOrders.length} шт</div>
-            </div>
-            <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl px-4 py-2 text-center">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Отменено</div>
-              <div className="text-rose-400 font-black font-mono text-base leading-tight">
-                {historyOrders.filter((o) => o.status === "cancelled").length} шт
-              </div>
-            </div>
-            <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl px-4 py-2 text-center">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Выручка</div>
-              <div className="text-orange-400 font-black font-mono text-sm leading-tight">{formatPrice(totalSum)} сум</div>
-            </div>
+          <div className="flex flex-wrap gap-3">
+            {statCards.map((card) => (
+              <StatCard key={card.label} {...card} />
+            ))}
           </div>
         )}
       </div>
@@ -453,7 +493,7 @@ export default function ClientHistory() {
       {/* ── FILTERS ── */}
       <div className="flex flex-wrap gap-3 items-center">
 
-        {/* Search — white/light style */}
+        {/* Search */}
         <div className="relative flex-1 min-w-56">
           <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
             <SearchIcon className="w-4 h-4" />
@@ -463,7 +503,7 @@ export default function ClientHistory() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Поиск по имени, телефону или товару..."
-            className="w-full bg-white border-2 border-slate-200 hover:border-slate-300 focus:border-cyan-400 rounded-xl pl-10 pr-10 py-2.5 text-[13px] text-slate-800 placeholder-slate-400 outline-none transition-all duration-200 shadow-sm focus:shadow-cyan-100/50 focus:shadow-md"
+            className="w-full bg-white border-2 border-slate-200 hover:border-slate-300 focus:border-cyan-400 rounded-xl pl-10 pr-10 py-2.5 text-[13px] text-slate-800 placeholder-slate-400 outline-none transition-all duration-200 shadow-sm"
           />
           {search && (
             <button
@@ -539,7 +579,6 @@ export default function ClientHistory() {
                       </tr>
                     ))
                   : currentOrders.map((order) => {
-                      const isSelected = selectedOrderId === order._id;
                       const status = STATUS_CONFIG[order.status] || STATUS_CONFIG.delivered;
                       const total = (order.product?.price || 0) * (order.quantity || 0);
                       const link = mapsLink(order.location);
@@ -548,17 +587,12 @@ export default function ClientHistory() {
                       return (
                         <tr
                           key={order._id}
-                          onClick={() => { setSelectedOrderId(order._id); setSelected(order); }}
                           style={{ verticalAlign: "middle" }}
-                          className={`cursor-pointer transition-all duration-200 border-l-4 ${
-                            isSelected
-                              ? "bg-linear-to-r from-cyan-500/15 via-cyan-500/5 to-transparent border-l-cyan-500"
-                              : "border-l-transparent hover:bg-linear-to-r hover:from-cyan-500/10 hover:via-cyan-400/5 hover:to-transparent hover:border-l-cyan-500/50"
-                          }`}
+                          className="transition-all duration-150 border-l-4 border-l-transparent hover:bg-slate-800/25 hover:border-l-slate-600"
                         >
-                          {/* Клиент — no username */}
+                          {/* Клиент */}
                           <td className="p-4 align-middle whitespace-nowrap">
-                            <div className={`font-bold ${isSelected ? "text-cyan-400" : "text-white"}`}>
+                            <div className="font-bold text-white">
                               {order.botUser?.fullName || "Неизвестно"}
                             </div>
                             <div className="text-[11px] text-slate-500 font-mono mt-0.5">
@@ -623,9 +657,9 @@ export default function ClientHistory() {
 
                           {/* Действие */}
                           <td className="p-4 align-middle text-center whitespace-nowrap">
-                            <div className="flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-center gap-2">
                               <button
-                                onClick={(e) => { e.stopPropagation(); setSelected(order); }}
+                                onClick={() => setSelected(order)}
                                 title="Детали"
                                 className="w-8 h-8 inline-flex items-center justify-center bg-cyan-500/10 border border-cyan-500/20 hover:bg-cyan-500 text-cyan-400 hover:text-black rounded-lg transition-all"
                               >

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import toast from "react-hot-toast";
 import axios from "../utils/axios.js";
 
 const STATUS_CONFIG = {
@@ -50,6 +51,89 @@ function mapsLink(location) {
 }
 
 const formatPrice = (num) => (num || 0).toLocaleString("ru-RU");
+
+// ─── Иконки ────────────────────────────────────────────────────────────────
+const TrashIcon = ({ className = "w-4 h-4" }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+    <path d="M10 11v6" />
+    <path d="M14 11v6" />
+    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+  </svg>
+);
+
+const EyeIcon = ({ className = "w-4 h-4" }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
+// ─── Toast-подтверждение удаления ───────────────────────────────────────────
+function confirmDeleteToast(message = "Удалить этот заказ из истории?") {
+  return new Promise((resolve) => {
+    toast.custom(
+      (t) => (
+        <div
+          className={`${
+            t.visible ? "animate-in fade-in" : "opacity-0"
+          } max-w-sm w-full bg-[#15171f] border border-slate-700 shadow-2xl rounded-2xl p-4 flex flex-col gap-3`}
+        >
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
+              <TrashIcon className="w-4.5 h-4.5 text-rose-400" />
+            </div>
+            <div className="flex-1 pt-1">
+              <p className="text-sm font-bold text-slate-100">{message}</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Это действие нельзя отменить.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <button
+              onClick={() => {
+                toast.dismiss(t.id);
+                resolve(false);
+              }}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all"
+            >
+              Отмена
+            </button>
+            <button
+              onClick={() => {
+                toast.dismiss(t.id);
+                resolve(true);
+              }}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-900/30 transition-all flex items-center gap-1.5"
+            >
+              <TrashIcon className="w-3.5 h-3.5" />
+              Удалить
+            </button>
+          </div>
+        </div>
+      ),
+      { duration: 15000, position: "top-center" }
+    );
+  });
+}
 
 // ─── Detail Modal ─────────────────────────────────────────────────────────────
 const DetailModal = ({ order, onClose }) => {
@@ -190,15 +274,21 @@ export default function ClientHistory() {
 
   const deleteOrder = async (e, id) => {
     e.stopPropagation();
-    if (!window.confirm("Удалить этот заказ из истории?")) return;
+    const confirmed = await confirmDeleteToast("Удалить этот заказ из истории?");
+    if (!confirmed) return;
+
     setDeletingId(id);
     try {
       await axios.delete(`/api/bot/orders/${id}`);
       setOrders((prev) => prev.filter((o) => o._id !== id));
       if (selected?._id === id) setSelected(null);
       if (selectedOrderId === id) setSelectedOrderId(null);
+      toast.success("Заказ удалён из истории", { position: "top-center" });
     } catch (err) {
-      alert(err.response?.data?.message || "Ошибка при удалении");
+      toast.error(
+        err.response?.data?.message || "Ошибка при удалении заказа",
+        { position: "top-center" }
+      );
     } finally {
       setDeletingId(null);
     }
@@ -485,20 +575,20 @@ export default function ClientHistory() {
                                   setSelected(order);
                                 }}
                                 title="Детали"
-                                className="w-8 h-8 inline-flex items-center justify-center bg-cyan-500/10 border border-cyan-500/20 hover:bg-cyan-500 text-cyan-400 hover:text-black rounded-lg text-sm transition-all"
+                                className="w-8 h-8 inline-flex items-center justify-center bg-cyan-500/10 border border-cyan-500/20 hover:bg-cyan-500 text-cyan-400 hover:text-black rounded-lg transition-all"
                               >
-                                👁
+                                <EyeIcon className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={(e) => deleteOrder(e, order._id)}
                                 disabled={isDeleting}
                                 title="Удалить"
-                                className="w-8 h-8 inline-flex items-center justify-center bg-rose-600/10 border border-rose-500/20 hover:bg-rose-600 text-rose-400 hover:text-white rounded-lg text-xs transition-all disabled:opacity-40"
+                                className="w-8 h-8 inline-flex items-center justify-center bg-rose-600/10 border border-rose-500/20 hover:bg-rose-600 text-rose-400 hover:text-white rounded-lg transition-all disabled:opacity-40"
                               >
                                 {isDeleting ? (
-                                  <span className="w-3 h-3 border-2 border-rose-400/30 border-t-rose-400 rounded-full animate-spin" />
+                                  <span className="w-3.5 h-3.5 border-2 border-rose-400/30 border-t-rose-400 rounded-full animate-spin" />
                                 ) : (
-                                  "🗑️"
+                                  <TrashIcon className="w-4 h-4" />
                                 )}
                               </button>
                             </div>

@@ -23,7 +23,7 @@ function formatDateTime(dateStr) {
   const year = d.getFullYear();
   const hours = String(d.getHours()).padStart(2, "0");
   const mins = String(d.getMinutes()).padStart(2, "0");
-  return `${day}.${month}.${year},${hours}:${mins}`;
+  return `${day}.${month}.${year}, ${hours}:${mins}`;
 }
 
 function formatPhone(phone) {
@@ -84,6 +84,15 @@ function XIcon({ className = "w-4 h-4" }) {
   );
 }
 
+function EyeIcon({ className = "w-4 h-4" }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
 function CircleXIcon({ className = "w-5 h-5" }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -93,6 +102,118 @@ function CircleXIcon({ className = "w-5 h-5" }) {
     </svg>
   );
 }
+
+// ─── Detail Modal ─────────────────────────────────────────────────────────────
+const DetailModal = ({ order, onClose }) => {
+  if (!order) return null;
+  const status = STATUS_CONFIG[order.status] || STATUS_CONFIG.new;
+  const unitPrice = order.product?.price || 0;
+  const total = unitPrice * (order.quantity || 0);
+  const link = mapsLink(order.location);
+
+  return (
+    <div
+      className="fixed inset-0 z-9999 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+      style={{ animation: "fadeIn 0.2s ease forwards" }}
+      onClick={onClose}
+    >
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes modalUp {
+          from { opacity: 0; transform: translateY(24px) scale(0.97); }
+          to   { opacity: 1; transform: translateY(0)     scale(1); }
+        }
+      `}</style>
+      <div
+        className="w-full max-w-md bg-[#0d0f1a] border border-slate-800 rounded-2xl shadow-2xl overflow-hidden"
+        style={{ animation: "modalUp 0.3s cubic-bezier(0.34,1.3,0.64,1) forwards" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Top gradient line */}
+        <div className="h-0.5 w-full bg-linear-to-r from-orange-500 via-amber-400 to-pink-500" />
+
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-slate-800/80 flex items-start justify-between gap-4 bg-slate-900/30">
+          <div>
+            <h3 className="text-base font-black text-white tracking-wide">Детали заказа</h3>
+            <p className="text-slate-500 text-xs mt-0.5 font-mono">{formatDateTime(order.createdAt)}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700/80 transition-all"
+          >
+            ✕ Закрыть
+          </button>
+        </div>
+
+        <div className="px-6 py-5 flex flex-col gap-4">
+          {/* Status */}
+          <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full ${status.badge}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${status.dot}`} />
+            {status.label}
+          </span>
+
+          {/* Info rows */}
+          <div className="flex flex-col divide-y divide-slate-800/60 text-sm">
+            {[
+              { label: "Клиент",     value: order.botUser?.fullName || "Неизвестно" },
+              { label: "Телефон",    value: formatPhone(order.botUser?.phone), mono: true },
+              { label: "Username",   value: order.botUser?.username ? `@${order.botUser.username}` : "—" },
+              { label: "Товар",      value: order.product?.name || "—" },
+              { label: "Количество", value: `${order.quantity} шт` },
+              ...(unitPrice > 0 ? [{ label: "Цена за шт",  value: `${formatPrice(unitPrice)} сум`, highlight: "violet" }] : []),
+              ...(total > 0      ? [{ label: "Итого",       value: `${formatPrice(total)} сум`,     highlight: "orange" }] : []),
+              ...(order.note     ? [{ label: "Примечание",  value: `"${order.note}"`,                italic: true }]       : []),
+            ].map(({ label, value, mono, highlight, italic }) => (
+              <div key={label} className="flex items-center justify-between py-3 gap-3">
+                <span className="text-slate-500 text-[11px] uppercase tracking-wide font-bold shrink-0">
+                  {label}
+                </span>
+                <span
+                  className={`text-right font-semibold text-[13px] truncate
+                    ${highlight === "orange" ? "text-orange-400" : ""}
+                    ${highlight === "violet" ? "text-violet-400" : ""}
+                    ${!highlight ? "text-slate-200" : ""}
+                    ${mono   ? "font-mono"   : ""}
+                    ${italic ? "italic text-slate-400" : ""}
+                  `}
+                >
+                  {value}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Price summary */}
+          {total > 0 && unitPrice > 0 && (
+            <div className="rounded-xl bg-linear-to-r from-orange-500/10 to-violet-500/10 border border-orange-500/15 px-4 py-3 flex items-center justify-between">
+              <span className="text-xs text-slate-400 font-bold">
+                {order.quantity} шт × {formatPrice(unitPrice)} сум
+              </span>
+              <span className="text-orange-400 font-black text-sm">{formatPrice(total)} сум</span>
+            </div>
+          )}
+
+          {/* Map link */}
+          {link ? (
+            <a
+              href={link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 text-cyan-400 hover:text-cyan-300 text-sm font-bold transition-all"
+            >
+              📍 Открыть на карте
+            </a>
+          ) : (
+            <div className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-slate-800/30 border border-slate-800 text-slate-600 text-sm">
+              📍 Локация не получена
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // ─── Toast отмены заказа ─────────────────────────────────────────────────────
 function confirmCancelToast(message = "Отменить этот заказ?") {
@@ -206,6 +327,7 @@ export default function ClientOrders() {
   const [updatingId, setUpdatingId] = useState(null);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState(null);
+  const [modalOrder, setModalOrder] = useState(null);
 
   const { markAllSeen } = useClientOrderNotifications();
 
@@ -255,10 +377,15 @@ export default function ClientOrders() {
       if (status === "delivered" || status === "cancelled") {
         setOrders((prev) => prev.filter((o) => o._id !== id));
         if (selectedOrderId === id) setSelectedOrderId(null);
+        if (modalOrder?._id === id) setModalOrder(null);
       } else {
         setOrders((prev) =>
           prev.map((o) => (o._id === id ? { ...o, status } : o))
         );
+        // update modal order if open
+        if (modalOrder?._id === id) {
+          setModalOrder((prev) => ({ ...prev, status }));
+        }
       }
 
       if (status === "accepted") {
@@ -293,6 +420,7 @@ export default function ClientOrders() {
       const count = orders.length;
       setOrders([]);
       setSelectedOrderId(null);
+      setModalOrder(null);
       toast.success(`Все ${count} заказов завершены`, { position: "top-center" });
     } catch {
       toast.error("Ошибка при завершении некоторых заказов", { position: "top-center" });
@@ -415,7 +543,6 @@ export default function ClientOrders() {
                 const isUpdating = updatingId === order._id;
                 const total = (order.product?.price || 0) * (order.quantity || 0);
                 const link = mapsLink(order.location);
-                const [datePart, timePart] = formatDateTime(order.createdAt).split(",");
 
                 return (
                   <tr
@@ -428,19 +555,14 @@ export default function ClientOrders() {
                         : "border-l-transparent hover:bg-linear-to-r hover:from-orange-500/10 hover:via-orange-400/5 hover:to-transparent hover:border-l-orange-500/50"
                     }`}
                   >
-                    {/* Клиент */}
+                    {/* Клиент — без username */}
                     <td className="p-4 align-middle">
-                      <div className="font-semibold text-white">
+                      <div className={`font-semibold ${isSelected ? "text-orange-400" : "text-white"}`}>
                         {order.botUser?.fullName || "Неизвестно"}
                       </div>
                       <div className="text-[11px] text-slate-500 font-mono mt-0.5">
                         {formatPhone(order.botUser?.phone)}
                       </div>
-                      {order.botUser?.username && (
-                        <div className="text-[11px] text-slate-600 mt-0.5">
-                          @{order.botUser.username}
-                        </div>
-                      )}
                     </td>
 
                     {/* Товар */}
@@ -477,14 +599,11 @@ export default function ClientOrders() {
                       </span>
                     </td>
 
-                    {/* Время */}
+                    {/* Время — 1 qatorda */}
                     <td className="p-4 align-middle whitespace-nowrap">
-                      <div className="text-slate-300 text-xs font-semibold font-mono">
-                        {datePart}
-                      </div>
-                      <div className="text-slate-500 text-xs font-mono mt-0.5">
-                        {timePart}
-                      </div>
+                      <span className="text-slate-400 text-xs font-mono">
+                        {formatDateTime(order.createdAt)}
+                      </span>
                     </td>
 
                     {/* Локация */}
@@ -510,6 +629,15 @@ export default function ClientOrders() {
                         className="flex items-center justify-center gap-2"
                         onClick={(e) => e.stopPropagation()}
                       >
+                        {/* Eye button — detail modal */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setModalOrder(order); }}
+                          title="Детали"
+                          className="w-8 h-8 inline-flex items-center justify-center bg-slate-700/40 border border-slate-600/30 hover:bg-slate-600 text-slate-400 hover:text-white rounded-lg transition-all"
+                        >
+                          <EyeIcon className="w-4 h-4" />
+                        </button>
+
                         {order.status === "new" ? (
                           <>
                             <button
@@ -586,6 +714,9 @@ export default function ClientOrders() {
           )}
         </table>
       </div>
+
+      {/* DETAIL MODAL */}
+      <DetailModal order={modalOrder} onClose={() => setModalOrder(null)} />
     </div>
   );
 }

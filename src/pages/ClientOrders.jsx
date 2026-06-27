@@ -460,32 +460,30 @@ export default function ClientOrders() {
 
   const { markAllSeen } = useClientOrderNotifications();
 
-  const fetchOrders = useCallback(
-    async (silent = false) => {
-      if (!silent) setLoading(true);
-      try {
-        const res = await axios.get("/api/bot/orders");
-        const raw = res.data?.data ?? res.data;
-        const all = Array.isArray(raw) ? raw : [];
-        const active = all.filter(
-          (o) => o.status === "new" || o.status === "accepted"
+  const fetchOrders = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const res = await axios.get("/api/bot/orders");
+      const raw = res.data?.data ?? res.data;
+      const all = Array.isArray(raw) ? raw : [];
+      const active = all.filter(
+        (o) => o.status === "new" || o.status === "accepted"
+      );
+      setOrders(active);
+      setError(null);
+      setSelectedOrderId((prev) => {
+        if (prev && active.some((o) => o._id === prev)) return prev;
+        return active[0]?._id ?? null;
+      });
+    } catch (err) {
+      if (!silent)
+        setError(
+          err.response?.data?.message || "Ошибка при загрузке заказов"
         );
-        setOrders(active);
-        setError(null);
-        if (active.length > 0 && !selectedOrderId) {
-          setSelectedOrderId(active[0]._id);
-        }
-      } catch (err) {
-        if (!silent)
-          setError(
-            err.response?.data?.message || "Ошибка при загрузке заказов"
-          );
-      } finally {
-        if (!silent) setLoading(false);
-      }
-    },
-    [selectedOrderId]
-  );
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchOrders();

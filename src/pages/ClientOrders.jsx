@@ -46,6 +46,24 @@ function mapsLink(location) {
 
 const formatPrice = (num) => (num || 0).toLocaleString("ru-RU");
 
+// Buyurtma ichidagi items massividan jami summani hisoblaymiz.
+// Agar serverdan totalPrice kelmasa ham (eski yozuvlar), shu yerda fallback bo'ladi.
+function getOrderTotal(order) {
+  if (typeof order.totalPrice === "number") return order.totalPrice;
+  return (order.items || []).reduce(
+    (sum, i) => sum + (i.price || i.product?.price || 0) * (i.quantity || 0),
+    0
+  );
+}
+
+// Items massivini "Пельмени ×2, Котлета ×1" ko'rinishiga o'giradi
+function formatItemsSummary(items) {
+  if (!items || items.length === 0) return "—";
+  return items
+    .map((i) => `${i.product?.name || "—"} ×${i.quantity}`)
+    .join(", ");
+}
+
 const TOAST_STYLE = `
   @keyframes slideDown {
     from { opacity: 0; transform: translateY(-16px) scale(0.95); }
@@ -147,8 +165,8 @@ function CircleXIcon({ className = "w-5 h-5" }) {
 const DetailModal = ({ order, onClose }) => {
   if (!order) return null;
   const status = STATUS_CONFIG[order.status] || STATUS_CONFIG.new;
-  const unitPrice = order.product?.price || 0;
-  const total = unitPrice * (order.quantity || 0);
+  const items = order.items || [];
+  const total = getOrderTotal(order);
   const link = mapsLink(order.location);
 
   return (
@@ -201,7 +219,7 @@ const DetailModal = ({ order, onClose }) => {
             {status.label}
           </span>
 
-          {/* Info rows */}
+          {/* Info rows — клиент */}
           <div className="flex flex-col divide-y divide-slate-800/60 text-sm">
             {[
               {
@@ -219,26 +237,6 @@ const DetailModal = ({ order, onClose }) => {
                   ? `@${order.botUser.username}`
                   : "—",
               },
-              { label: "Товар", value: order.product?.name || "—" },
-              { label: "Количество", value: `${order.quantity} шт` },
-              ...(unitPrice > 0
-                ? [
-                    {
-                      label: "Цена за шт",
-                      value: `${formatPrice(unitPrice)} сум`,
-                      highlight: "violet",
-                    },
-                  ]
-                : []),
-              ...(total > 0
-                ? [
-                    {
-                      label: "Итого",
-                      value: `${formatPrice(total)} сум`,
-                      highlight: "orange",
-                    },
-                  ]
-                : []),
               ...(order.note
                 ? [
                     {
@@ -248,7 +246,7 @@ const DetailModal = ({ order, onClose }) => {
                     },
                   ]
                 : []),
-            ].map(({ label, value, mono, highlight, italic }) => (
+            ].map(({ label, value, mono, italic }) => (
               <div
                 key={label}
                 className="flex items-center justify-between py-3 gap-3"
@@ -258,11 +256,9 @@ const DetailModal = ({ order, onClose }) => {
                 </span>
                 <span
                   className={`text-right font-semibold text-[13px] truncate
-                    ${highlight === "orange" ? "text-orange-400" : ""}
-                    ${highlight === "violet" ? "text-violet-400" : ""}
-                    ${!highlight ? "text-slate-200" : ""}
                     ${mono ? "font-mono" : ""}
                     ${italic ? "italic text-slate-400" : ""}
+                    ${!mono && !italic ? "text-slate-200" : ""}
                   `}
                 >
                   {value}
@@ -271,11 +267,50 @@ const DetailModal = ({ order, onClose }) => {
             ))}
           </div>
 
+          {/* Mahsulotlar ro'yxati */}
+          <div className="flex flex-col gap-2">
+            <span className="text-slate-500 text-[11px] uppercase tracking-wide font-bold">
+              Товары
+            </span>
+            <div className="flex flex-col divide-y divide-slate-800/60 rounded-xl border border-slate-800/60 overflow-hidden">
+              {items.length === 0 ? (
+                <div className="px-3 py-3 text-slate-500 text-sm text-center">
+                  Нет товаров
+                </div>
+              ) : (
+                items.map((item, idx) => {
+                  const name = item.product?.name || "—";
+                  const price = item.price ?? item.product?.price ?? 0;
+                  const qty = item.quantity || 0;
+                  const lineTotal = price * qty;
+                  return (
+                    <div
+                      key={item._id || idx}
+                      className="px-3 py-2.5 flex items-center justify-between gap-3 bg-slate-900/20"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-slate-200 text-[13px] font-semibold truncate">
+                          {name}
+                        </div>
+                        <div className="text-slate-500 text-[11px] font-mono">
+                          {qty} шт × {formatPrice(price)} сум
+                        </div>
+                      </div>
+                      <div className="text-violet-400 font-bold text-[13px] font-mono shrink-0">
+                        {formatPrice(lineTotal)} сум
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
           {/* Price summary */}
-          {total > 0 && unitPrice > 0 && (
+          {total > 0 && (
             <div className="rounded-xl bg-linear-to-r from-orange-500/10 to-violet-500/10 border border-orange-500/15 px-4 py-3 flex items-center justify-between">
               <span className="text-xs text-slate-400 font-bold">
-                {order.quantity} шт × {formatPrice(unitPrice)} сум
+                Итого по заказу
               </span>
               <span className="text-orange-400 font-black text-sm">
                 {formatPrice(total)} сум
@@ -541,12 +576,24 @@ export default function ClientOrders() {
     }
   };
 
-  const totalSum = orders.reduce(
-    (sum, o) => sum + (o.product?.price || 0) * (o.quantity || 0),
-    0
-  );
+  const totalSum = orders.reduce((sum, o) => sum + getOrderTotal(o), 0);
   const newCount = orders.filter((o) => o.status === "new").length;
   const acceptedCount = orders.filter((o) => o.status === "accepted").length;
+
+  // Footer uchun: barcha buyurtmalardagi mahsulotlarni nomi bo'yicha yig'ib chiqamiz
+  const productSummary = Object.values(
+    orders.reduce((acc, o) => {
+      (o.items || []).forEach((item) => {
+        const name = item.product?.name || "—";
+        const price = item.price ?? item.product?.price ?? 0;
+        const qty = item.quantity || 0;
+        if (!acc[name]) acc[name] = { name, qty: 0, total: 0 };
+        acc[name].qty += qty;
+        acc[name].total += price * qty;
+      });
+      return acc;
+    }, {})
+  );
 
   return (
     <div className="max-w-6xl mx-auto p-2 flex flex-col gap-6 select-none">
@@ -630,7 +677,7 @@ export default function ClientOrders() {
           <thead>
             <tr className="border-b border-slate-800 bg-slate-900/40 text-slate-400 text-xs font-bold uppercase tracking-wider">
               <th className="p-4">Клиент 👤</th>
-              <th className="p-4">Товар / Кол-во 📦</th>
+              <th className="p-4">Товары / Кол-во 📦</th>
               <th className="p-4">Сумма 💵</th>
               <th className="p-4">Статус</th>
               <th className="p-4">Время ⏱️</th>
@@ -663,8 +710,8 @@ export default function ClientOrders() {
                 const status = STATUS_CONFIG[order.status] || STATUS_CONFIG.new;
                 const isSelected = selectedOrderId === order._id;
                 const isUpdating = updatingId === order._id;
-                const total =
-                  (order.product?.price || 0) * (order.quantity || 0);
+                const items = order.items || [];
+                const total = getOrderTotal(order);
                 const link = mapsLink(order.location);
 
                 return (
@@ -692,14 +739,27 @@ export default function ClientOrders() {
                       </div>
                     </td>
 
-                    {/* Товар */}
-                    <td className="p-4 align-middle text-slate-200 font-medium whitespace-nowrap">
-                      {order.product?.name || "—"}{" "}
-                      <span className="text-cyan-500 font-bold">
-                        ({order.quantity} шт)
-                      </span>
+                    {/* Товары — ro'yxat ko'rinishida */}
+                    <td className="p-4 align-middle text-slate-200 font-medium">
+                      <div className="flex flex-col gap-1 max-w-75">
+                        {items.length === 0 ? (
+                          <span className="text-slate-600">—</span>
+                        ) : (
+                          items.map((item, idx) => (
+                            <div
+                              key={item._id || idx}
+                              className="whitespace-nowrap"
+                            >
+                              {item.product?.name || "—"}{" "}
+                              <span className="text-cyan-500 font-bold">
+                                ({item.quantity} шт)
+                              </span>
+                            </div>
+                          ))
+                        )}
+                      </div>
                       {order.note && (
-                        <div className="text-[11px] text-slate-500 italic mt-0.5">
+                        <div className="text-[11px] text-slate-500 italic mt-1">
                           &quot;{order.note}&quot;
                         </div>
                       )}
@@ -849,20 +909,9 @@ export default function ClientOrders() {
 
                     <div className="h-4 w-px bg-slate-700 shrink-0" />
 
-                    {/* Har bir mahsulot bo'yicha pill */}
+                    {/* Har bir mahsulot bo'yicha pill (barcha buyurtmalar items'idan yig'ilgan) */}
                     <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
-                      {Object.values(
-                        orders.reduce((acc, o) => {
-                          const name = o.product?.name || "—";
-                          const price = o.product?.price || 0;
-                          const qty = o.quantity || 0;
-                          if (!acc[name])
-                            acc[name] = { name, qty: 0, total: 0 };
-                          acc[name].qty += qty;
-                          acc[name].total += price * qty;
-                          return acc;
-                        }, {})
-                      ).map(({ name, qty, total }) => (
+                      {productSummary.map(({ name, qty, total }) => (
                         <div
                           key={name}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700/50 text-[11px] font-semibold whitespace-nowrap"

@@ -342,7 +342,7 @@ export default function ClientHistory() {
   const [selected, setSelected] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 6;
+  const itemsPerPage = 5;
 
   useEffect(() => {
     const fetchOrders = async () => {

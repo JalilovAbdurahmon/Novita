@@ -56,14 +56,6 @@ function getOrderTotal(order) {
   );
 }
 
-// Items massivini "Пельмени ×2, Котлета ×1" ko'rinishiga o'giradi
-function formatItemsSummary(items) {
-  if (!items || items.length === 0) return "—";
-  return items
-    .map((i) => `${i.product?.name || "—"} ×${i.quantity}`)
-    .join(", ");
-}
-
 const TOAST_STYLE = `
   @keyframes slideDown {
     from { opacity: 0; transform: translateY(-16px) scale(0.95); }
@@ -255,10 +247,9 @@ const DetailModal = ({ order, onClose }) => {
                   {label}
                 </span>
                 <span
-                  className={`text-right font-semibold text-[13px] truncate
+                  className={`text-right font-semibold text-[13px] truncate text-slate-200
                     ${mono ? "font-mono" : ""}
                     ${italic ? "italic text-slate-400" : ""}
-                    ${!mono && !italic ? "text-slate-200" : ""}
                   `}
                 >
                   {value}
@@ -580,21 +571,6 @@ export default function ClientOrders() {
   const newCount = orders.filter((o) => o.status === "new").length;
   const acceptedCount = orders.filter((o) => o.status === "accepted").length;
 
-  // Footer uchun: barcha buyurtmalardagi mahsulotlarni nomi bo'yicha yig'ib chiqamiz
-  const productSummary = Object.values(
-    orders.reduce((acc, o) => {
-      (o.items || []).forEach((item) => {
-        const name = item.product?.name || "—";
-        const price = item.price ?? item.product?.price ?? 0;
-        const qty = item.quantity || 0;
-        if (!acc[name]) acc[name] = { name, qty: 0, total: 0 };
-        acc[name].qty += qty;
-        acc[name].total += price * qty;
-      });
-      return acc;
-    }, {})
-  );
-
   return (
     <div className="max-w-6xl mx-auto p-2 flex flex-col gap-6 select-none">
       {/* HEADER */}
@@ -901,39 +877,14 @@ export default function ClientOrders() {
             <tfoot>
               <tr className="border-t border-slate-700/60 bg-slate-900/30">
                 <td colSpan={7} className="px-4 py-3">
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
                     {/* Zakazlar soni */}
-                    <span className="text-xs text-slate-500 font-bold uppercase tracking-wider shrink-0 mr-2">
+                    <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">
                       Всего: {orders.length} заказ
                     </span>
 
-                    <div className="h-4 w-px bg-slate-700 shrink-0" />
-
-                    {/* Har bir mahsulot bo'yicha pill (barcha buyurtmalar items'idan yig'ilgan) */}
-                    <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
-                      {productSummary.map(({ name, qty, total }) => (
-                        <div
-                          key={name}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700/50 text-[11px] font-semibold whitespace-nowrap"
-                        >
-                          <span className="text-slate-300">{name}</span>
-                          <span className="text-cyan-400 font-bold">
-                            ×{qty}
-                          </span>
-                          {total > 0 && (
-                            <>
-                              <span className="text-slate-600">·</span>
-                              <span className="text-orange-400 font-bold font-mono">
-                                {formatPrice(total)} сум
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-
                     {/* O'ng tomonda grand total */}
-                    <div className="shrink-0 ml-auto flex items-center gap-2 pl-3 border-l border-slate-700">
+                    <div className="flex items-center gap-2">
                       <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">
                         Итого:
                       </span>

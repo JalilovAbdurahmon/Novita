@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import LocationPicker from "./LocationPicker";
 
 const tg = window.Telegram?.WebApp;
 const fmt = (n) => (n || 0).toLocaleString("ru-RU");
@@ -24,6 +25,7 @@ const T = {
     per: "dona",
     currency: "so'm",
     changeLang: "RU",
+    pickLocation: "📍 Joylashuvni belgilang",
   },
   ru: {
     loading: "Загрузка",
@@ -35,6 +37,7 @@ const T = {
     per: "шт",
     currency: "сум",
     changeLang: "UZ",
+    pickLocation: "📍 Укажите местоположение",
   },
 };
 
@@ -48,6 +51,9 @@ export default function MiniApp() {
   const [activeCategory, setActiveCategory] = useState(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetMounted, setSheetMounted] = useState(false);
+  // LocationPicker sahifasini ko'rsatish uchun
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [pendingOrder, setPendingOrder] = useState(null); // { productId, quantity }
   const catRefs = useRef({});
   const tabsRef = useRef(null);
 
@@ -87,10 +93,29 @@ export default function MiniApp() {
     setTimeout(() => setSheetMounted(false), 300);
   };
 
+  // 1-qadam: foydalanuvchi "Buyurtma berish" bosadi
+  // Sheet yopiladi va LocationPicker ochiladi
   const handleOrder = () => {
     if (!selected) return;
+    closeSheet();
+    setPendingOrder({ productId: selected._id, quantity });
+    setTimeout(() => setShowLocationPicker(true), 350);
+  };
+
+  // 2-qadam: LocationPicker dan koordinatlar keladi
+  // Bot ga type:"order" + location birgalikda yuboriladi
+  const handleLocationConfirm = ({ lat, lng }) => {
+    if (!pendingOrder) return;
     setSending(true);
-    tg?.sendData(JSON.stringify({ productId: selected._id, quantity }));
+    tg?.sendData(
+      JSON.stringify({
+        type: "order",
+        productId: pendingOrder.productId,
+        quantity: pendingOrder.quantity,
+        lat,
+        lng,
+      })
+    );
   };
 
   const scrollToCategory = (cat) => {
@@ -99,6 +124,16 @@ export default function MiniApp() {
     const tabEl = tabsRef.current?.querySelector(`[data-cat="${cat}"]`);
     tabEl?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
   };
+
+  // LocationPicker ekrani
+  if (showLocationPicker) {
+    return (
+      <LocationPicker
+        lang={lang}
+        onConfirm={handleLocationConfirm}
+      />
+    );
+  }
 
   if (loading) {
     return (
@@ -184,8 +219,7 @@ export default function MiniApp() {
         .card {
           display: flex; gap: 0; margin: 0 16px 10px;
           background: #fff; border-radius: 20px; overflow: hidden;
-          border: none;
-          cursor: pointer;
+          border: none; cursor: pointer;
           transition: transform .15s;
           -webkit-tap-highlight-color: transparent;
           position: relative;
@@ -219,16 +253,13 @@ export default function MiniApp() {
           margin-bottom: 8px; flex: 1;
         }
         .card-footer { display: flex; align-items: center; justify-content: space-between; }
-        .card-price {
-          font-size: 14px; font-weight: 800; color: #111;
-        }
+        .card-price { font-size: 14px; font-weight: 800; color: #111; }
         .card-add {
           width: 32px; height: 32px; border-radius: 10px;
           background: #FFCC00; border: none; cursor: pointer;
           display: flex; align-items: center; justify-content: center;
           font-size: 20px; font-weight: 400; color: #111;
-          transition: transform .15s;
-          flex-shrink: 0;
+          transition: transform .15s; flex-shrink: 0;
         }
         .card-add:active { transform: scale(0.9); }
         .card.selected::after {
@@ -379,10 +410,7 @@ export default function MiniApp() {
           </div>
         ) : (
           categories.map((cat) => (
-            <section
-              key={cat}
-              ref={(el) => (catRefs.current[cat] = el)}
-            >
+            <section key={cat} ref={(el) => (catRefs.current[cat] = el)}>
               {categories.length > 1 && (
                 <div className="section-title">{cat}</div>
               )}
@@ -409,16 +437,11 @@ export default function MiniApp() {
                         </div>
                         <div className="card-footer">
                           <div className="card-price">
-                            {p.price > 0
-                              ? `${fmt(p.price)} ${tx.currency}`
-                              : "—"}
+                            {p.price > 0 ? `${fmt(p.price)} ${tx.currency}` : "—"}
                           </div>
                           <button
                             className="card-add"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openSheet(p);
-                            }}
+                            onClick={(e) => { e.stopPropagation(); openSheet(p); }}
                           >
                             {isSelected ? "✓" : "+"}
                           </button>
@@ -443,7 +466,6 @@ export default function MiniApp() {
           <div className={`sheet${sheetOpen ? " open" : ""}`}>
             <div className="sheet-handle" />
             <div className="sheet-inner">
-              {/* Product info */}
               <div className="sheet-product">
                 {selected?.image ? (
                   <img src={selected.image} alt={selected.name} className="sheet-img" />
@@ -465,27 +487,21 @@ export default function MiniApp() {
                 </div>
               </div>
 
-              {/* Quantity */}
               <div className="qty-row">
                 <span className="qty-label">{tx.qty}</span>
                 <div className="qty-controls">
                   <button
                     className="qty-btn minus"
                     onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                  >
-                    −
-                  </button>
+                  >−</button>
                   <span className="qty-num">{quantity}</span>
                   <button
                     className="qty-btn plus"
                     onClick={() => setQuantity((q) => q + 1)}
-                  >
-                    +
-                  </button>
+                  >+</button>
                 </div>
               </div>
 
-              {/* Total */}
               {selected?.price > 0 && (
                 <div className="total-row">
                   <span className="total-label">{tx.total}</span>
@@ -495,7 +511,6 @@ export default function MiniApp() {
                 </div>
               )}
 
-              {/* Order button */}
               <button
                 className="order-btn"
                 onClick={handleOrder}
@@ -519,7 +534,7 @@ export default function MiniApp() {
         </>
       )}
 
-      {/* FLOAT BAR — sheet yopilganda */}
+      {/* FLOAT BAR */}
       {selected && !sheetOpen && !sheetMounted && (
         <div className="float-bar" onClick={() => openSheet(selected)}>
           <div className="float-badge">{quantity}</div>

@@ -251,7 +251,7 @@ const DetailModal = ({ order, onClose }) => {
                 key={label}
                 className="flex items-center justify-between py-3 gap-3"
               >
-                <span className="text-white text-[11px] uppercase tracking-wide font-bold shrink-0">
+                <span className="text-slate-500 text-[11px] uppercase tracking-wide font-bold shrink-0">
                   {label}
                 </span>
                 <span

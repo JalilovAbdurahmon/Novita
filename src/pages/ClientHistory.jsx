@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import toast from "react-hot-toast";
 import axios from "../utils/axios.js";
 
@@ -51,6 +51,21 @@ function mapsLink(location) {
 }
 
 const formatPrice = (num) => (num || 0).toLocaleString("ru-RU");
+
+// Buyurtma ichidagi items massividan jami summani hisoblaymiz.
+// Agar serverdan totalPrice kelmasa ham (eski yozuvlar), shu yerda fallback bo'ladi.
+function getOrderTotal(order) {
+  if (typeof order.totalPrice === "number") return order.totalPrice;
+  return (order.items || []).reduce(
+    (sum, i) => sum + (i.price ?? i.product?.price ?? 0) * (i.quantity || 0),
+    0
+  );
+}
+
+// Items massividagi umumiy dona sonini hisoblaymiz (масалан "3 шт" -> 2+1)
+function getOrderItemsCount(order) {
+  return (order.items || []).reduce((sum, i) => sum + (i.quantity || 0), 0);
+}
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
 const TrashIcon = ({ className = "w-4 h-4" }) => (
@@ -191,8 +206,8 @@ function showAnimatedToast(message, type = "success") {
 const DetailModal = ({ order, onClose }) => {
   if (!order) return null;
   const status = STATUS_CONFIG[order.status] || STATUS_CONFIG.delivered;
-  const unitPrice = order.product?.price || 0;
-  const total = unitPrice * (order.quantity || 0);
+  const items = order.items || [];
+  const total = getOrderTotal(order);
   const link = mapsLink(order.location);
 
   return (
@@ -236,27 +251,20 @@ const DetailModal = ({ order, onClose }) => {
             {status.label}
           </span>
 
-          {/* Info rows */}
+          {/* Info rows — клиент */}
           <div className="flex flex-col divide-y divide-slate-800/60 text-sm">
             {[
-              { label: "Клиент",     value: order.botUser?.fullName || "Неизвестно" },
-              { label: "Телефон",    value: formatPhone(order.botUser?.phone), mono: true },
-              { label: "Username",   value: order.botUser?.username ? `@${order.botUser.username}` : "—" },
-              { label: "Товар",      value: order.product?.name || "—" },
-              { label: "Количество", value: `${order.quantity} шт` },
-              ...(unitPrice > 0 ? [{ label: "Цена за шт",  value: `${formatPrice(unitPrice)} сум`, highlight: "violet" }] : []),
-              ...(total > 0      ? [{ label: "Итого",       value: `${formatPrice(total)} сум`,     highlight: "orange" }] : []),
-              ...(order.note     ? [{ label: "Примечание",  value: `"${order.note}"`,                italic: true }]       : []),
-            ].map(({ label, value, mono, highlight, italic }) => (
+              { label: "Клиент",   value: order.botUser?.fullName || "Неизвестно" },
+              { label: "Телефон",  value: formatPhone(order.botUser?.phone), mono: true },
+              { label: "Username", value: order.botUser?.username ? `@${order.botUser.username}` : "—" },
+              ...(order.note ? [{ label: "Примечание", value: `"${order.note}"`, italic: true }] : []),
+            ].map(({ label, value, mono, italic }) => (
               <div key={label} className="flex items-center justify-between py-3 gap-3">
                 <span className="text-slate-500 text-[11px] uppercase tracking-wide font-bold shrink-0">
                   {label}
                 </span>
                 <span
-                  className={`text-right font-semibold text-[13px] truncate
-                    ${highlight === "orange" ? "text-orange-400" : ""}
-                    ${highlight === "violet" ? "text-violet-400" : ""}
-                    ${!highlight ? "text-slate-200" : ""}
+                  className={`text-right font-semibold text-[13px] truncate text-slate-200
                     ${mono   ? "font-mono"   : ""}
                     ${italic ? "italic text-slate-400" : ""}
                   `}
@@ -267,12 +275,49 @@ const DetailModal = ({ order, onClose }) => {
             ))}
           </div>
 
+          {/* Mahsulotlar ro'yxati */}
+          <div className="flex flex-col gap-2">
+            <span className="text-slate-500 text-[11px] uppercase tracking-wide font-bold">
+              Товары
+            </span>
+            <div className="flex flex-col divide-y divide-slate-800/60 rounded-xl border border-slate-800/60 overflow-hidden">
+              {items.length === 0 ? (
+                <div className="px-3 py-3 text-slate-500 text-sm text-center">
+                  Нет товаров
+                </div>
+              ) : (
+                items.map((item, idx) => {
+                  const name = item.product?.name || "—";
+                  const price = item.price ?? item.product?.price ?? 0;
+                  const qty = item.quantity || 0;
+                  const lineTotal = price * qty;
+                  return (
+                    <div
+                      key={item._id || idx}
+                      className="px-3 py-2.5 flex items-center justify-between gap-3 bg-slate-900/20"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-slate-200 text-[13px] font-semibold truncate">
+                          {name}
+                        </div>
+                        <div className="text-slate-500 text-[11px] font-mono">
+                          {qty} шт × {formatPrice(price)} сум
+                        </div>
+                      </div>
+                      <div className="text-violet-400 font-bold text-[13px] font-mono shrink-0">
+                        {formatPrice(lineTotal)} сум
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
           {/* Price summary */}
-          {total > 0 && unitPrice > 0 && (
+          {total > 0 && (
             <div className="rounded-xl bg-linear-to-r from-orange-500/10 to-violet-500/10 border border-orange-500/15 px-4 py-3 flex items-center justify-between">
-              <span className="text-xs text-slate-400 font-bold">
-                {order.quantity} шт × {formatPrice(unitPrice)} сум
-              </span>
+              <span className="text-xs text-slate-400 font-bold">Итого по заказу</span>
               <span className="text-orange-400 font-black text-sm">{formatPrice(total)} сум</span>
             </div>
           )}
@@ -344,24 +389,28 @@ export default function ClientHistory() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
-  useEffect(() => {
-    const fetchOrders = async () => {
-      setLoading(true);
-      try {
-        const res = await axios.get("/api/bot/orders");
-        const raw = res.data?.data ?? res.data;
-        const all = Array.isArray(raw) ? raw : [];
-        const sorted = [...all].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        setOrders(sorted);
-        setError(null);
-      } catch (err) {
-        setError(err.response?.data?.message || "Ошибка при загрузке истории");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchOrders();
+  // fetchOrders barqaror (hech qaysi state'ga bog'liq emas) — shu sababli
+  // selected/currentPage/search o'zgarishi hech qachon qayta fetch yoki
+  // butun jadvalni "loading" holatiga qaytarib yubormaydi.
+  const fetchOrders = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get("/api/bot/orders");
+      const raw = res.data?.data ?? res.data;
+      const all = Array.isArray(raw) ? raw : [];
+      const sorted = [...all].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      setOrders(sorted);
+      setError(null);
+    } catch (err) {
+      setError(err.response?.data?.message || "Ошибка при загрузке истории");
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
 
   const deleteOrder = async (e, id) => {
     e.stopPropagation();
@@ -390,7 +439,11 @@ export default function ClientHistory() {
       }
       if (search.trim()) {
         const q = search.trim().toLowerCase();
-        const haystack = [o.botUser?.fullName, o.botUser?.phone, o.product?.name]
+        const productNames = (o.items || [])
+          .map((i) => i.product?.name)
+          .filter(Boolean)
+          .join(" ");
+        const haystack = [o.botUser?.fullName, o.botUser?.phone, productNames]
           .filter(Boolean).join(" ").toLowerCase();
         if (!haystack.includes(q)) return false;
       }
@@ -425,7 +478,7 @@ export default function ClientHistory() {
   const historyOrders = orders.filter((o) => o.status === "delivered" || o.status === "cancelled");
   const deliveredOrders = historyOrders.filter((o) => o.status === "delivered");
   const cancelledOrders = historyOrders.filter((o) => o.status === "cancelled");
-  const totalSum = deliveredOrders.reduce((sum, o) => sum + (o.product?.price || 0) * (o.quantity || 0), 0);
+  const totalSum = deliveredOrders.reduce((sum, o) => sum + getOrderTotal(o), 0);
 
   const statCards = [
     {
@@ -560,7 +613,7 @@ export default function ClientHistory() {
               <thead>
                 <tr className="border-b border-slate-800 bg-slate-900/40 text-slate-400 text-xs font-bold uppercase tracking-wider">
                   <th className="p-4">Клиент 👤</th>
-                  <th className="p-4">Товар 📦</th>
+                  <th className="p-4">Товары 📦</th>
                   <th className="p-4">Кол-во</th>
                   <th className="p-4">Сумма 💵</th>
                   <th className="p-4">Статус</th>
@@ -580,7 +633,9 @@ export default function ClientHistory() {
                     ))
                   : currentOrders.map((order) => {
                       const status = STATUS_CONFIG[order.status] || STATUS_CONFIG.delivered;
-                      const total = (order.product?.price || 0) * (order.quantity || 0);
+                      const items = order.items || [];
+                      const total = getOrderTotal(order);
+                      const itemsCount = getOrderItemsCount(order);
                       const link = mapsLink(order.location);
                       const isDeleting = deletingId === order._id;
 
@@ -600,9 +655,20 @@ export default function ClientHistory() {
                             </div>
                           </td>
 
-                          {/* Товар */}
-                          <td className="p-4 align-middle whitespace-nowrap text-slate-200 font-medium">
-                            {order.product?.name || "—"}
+                          {/* Товары — ro'yxat ko'rinishida */}
+                          <td className="p-4 align-middle text-slate-200 font-medium">
+                            <div className="flex flex-col gap-1 max-w-60">
+                              {items.length === 0 ? (
+                                <span className="text-slate-600">—</span>
+                              ) : (
+                                items.map((item, idx) => (
+                                  <div key={item._id || idx} className="whitespace-nowrap truncate">
+                                    {item.product?.name || "—"}
+                                    <span className="text-cyan-500 font-bold"> ×{item.quantity}</span>
+                                  </div>
+                                ))
+                              )}
+                            </div>
                             {order.note && (
                               <div className="text-[11px] text-slate-500 italic mt-0.5 max-w-40 truncate">
                                 "{order.note}"
@@ -612,7 +678,7 @@ export default function ClientHistory() {
 
                           {/* Кол-во */}
                           <td className="p-4 align-middle whitespace-nowrap">
-                            <span className="text-cyan-500 font-bold">{order.quantity} шт</span>
+                            <span className="text-cyan-500 font-bold">{itemsCount} шт</span>
                           </td>
 
                           {/* Сумма */}

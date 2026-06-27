@@ -26,6 +26,13 @@ const T = {
     currency: "so'm",
     changeLang: "RU",
     pickLocation: "📍 Joylashuvni belgilang",
+    cartTitle: "Savat",
+    cartEmpty: "Savat bo'sh",
+    itemsCount: (n) => `${n} ta mahsulot`,
+    addToCart: "Savatga qo'shish",
+    updateCart: "Saqlash",
+    removeItem: "O'chirish",
+    closeSheet: "Yopish",
   },
   ru: {
     loading: "Загрузка",
@@ -38,12 +45,21 @@ const T = {
     currency: "сум",
     changeLang: "UZ",
     pickLocation: "📍 Укажите местоположение",
+    cartTitle: "Корзина",
+    cartEmpty: "Корзина пуста",
+    itemsCount: (n) => `${n} товара`,
+    addToCart: "В корзину",
+    updateCart: "Сохранить",
+    removeItem: "Удалить",
+    closeSheet: "Закрыть",
   },
 };
 
 export default function MiniApp() {
   const [products, setProducts] = useState([]);
-  const [selected, setSelected] = useState(null);
+  // savat: { [productId]: quantity }
+  const [cart, setCart] = useState({});
+  const [selected, setSelected] = useState(null); // sheet ichida tahrirlanayotgan mahsulot
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -51,13 +67,15 @@ export default function MiniApp() {
   const [activeCategory, setActiveCategory] = useState(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetMounted, setSheetMounted] = useState(false);
+  const [cartSheetOpen, setCartSheetOpen] = useState(false);
+  const [cartSheetMounted, setCartSheetMounted] = useState(false);
   // LocationPicker sahifasini ko'rsatish uchun
   const [showLocationPicker, setShowLocationPicker] = useState(false);
-  const [pendingOrder, setPendingOrder] = useState(null); // { productId, quantity }
   const catRefs = useRef({});
   const tabsRef = useRef(null);
 
   const tx = T[lang];
+  const productMap = useRef({});
 
   useEffect(() => {
     tg?.ready();
@@ -71,6 +89,7 @@ export default function MiniApp() {
       .then((d) => {
         const data = d.data || [];
         setProducts(data);
+        productMap.current = Object.fromEntries(data.map((p) => [p._id, p]));
         const cats = [...new Set(data.map((p) => p.category || "Mahsulotlar"))];
         setActiveCategory(cats[0] || null);
         setLoading(false);
@@ -81,37 +100,85 @@ export default function MiniApp() {
   const grouped = groupByCategory(products);
   const categories = Object.keys(grouped);
 
+  // ----- Savat hisob-kitoblari -----
+  const cartEntries = Object.entries(cart).filter(([, qty]) => qty > 0);
+  const cartCount = cartEntries.reduce((sum, [, qty]) => sum + qty, 0);
+  const cartTotal = cartEntries.reduce((sum, [id, qty]) => {
+    const p = productMap.current[id];
+    return sum + (p?.price || 0) * qty;
+  }, 0);
+
+  const setCartQty = (productId, qty) => {
+    setCart((prev) => {
+      const next = { ...prev };
+      if (qty <= 0) {
+        delete next[productId];
+      } else {
+        next[productId] = qty;
+      }
+      return next;
+    });
+  };
+
+  // ----- Mahsulot sheet (bitta mahsulot miqdorini tanlash) -----
   const openSheet = (product) => {
     setSelected(product);
-    setQuantity(1);
+    setQuantity(cart[product._id] || 1);
     setSheetMounted(true);
     requestAnimationFrame(() => setSheetOpen(true));
   };
 
   const closeSheet = () => {
     setSheetOpen(false);
-    setTimeout(() => setSheetMounted(false), 300);
+    setTimeout(() => {
+      setSheetMounted(false);
+      setSelected(null);
+    }, 300);
   };
 
-  // 1-qadam: foydalanuvchi "Buyurtma berish" bosadi
+  const confirmAddToCart = () => {
+    if (!selected) return;
+    setCartQty(selected._id, quantity);
+    closeSheet();
+  };
+
+  const removeSelectedFromCart = () => {
+    if (!selected) return;
+    setCartQty(selected._id, 0);
+    closeSheet();
+  };
+
+  // ----- Savat sheet -----
+  const openCartSheet = () => {
+    setCartSheetMounted(true);
+    requestAnimationFrame(() => setCartSheetOpen(true));
+  };
+
+  const closeCartSheet = () => {
+    setCartSheetOpen(false);
+    setTimeout(() => setCartSheetMounted(false), 300);
+  };
+
+  // 1-qadam: foydalanuvchi savatdan "Buyurtma berish" bosadi
   // Sheet yopiladi va LocationPicker ochiladi
   const handleOrder = () => {
-    if (!selected) return;
-    closeSheet();
-    setPendingOrder({ productId: selected._id, quantity });
+    if (cartEntries.length === 0) return;
+    closeCartSheet();
     setTimeout(() => setShowLocationPicker(true), 350);
   };
 
   // 2-qadam: LocationPicker dan koordinatlar keladi
-  // Bot ga type:"order" + location birgalikda yuboriladi
+  // Bot ga type:"order" + savat (items) + location birgalikda yuboriladi
   const handleLocationConfirm = ({ lat, lng }) => {
-    if (!pendingOrder) return;
+    if (cartEntries.length === 0) return;
     setSending(true);
     tg?.sendData(
       JSON.stringify({
         type: "order",
-        productId: pendingOrder.productId,
-        quantity: pendingOrder.quantity,
+        items: cartEntries.map(([productId, qty]) => ({
+          productId,
+          quantity: qty,
+        })),
         lat,
         lng,
       })
@@ -254,6 +321,7 @@ export default function MiniApp() {
         }
         .card-footer { display: flex; align-items: center; justify-content: space-between; }
         .card-price { font-size: 14px; font-weight: 800; color: #111; }
+
         .card-add {
           width: 32px; height: 32px; border-radius: 10px;
           background: #FFCC00; border: none; cursor: pointer;
@@ -262,9 +330,29 @@ export default function MiniApp() {
           transition: transform .15s; flex-shrink: 0;
         }
         .card-add:active { transform: scale(0.9); }
-        .card.selected::after {
+
+        .card-qty-pill {
+          display: flex; align-items: center; gap: 8px;
+          background: #111; border-radius: 10px;
+          padding: 4px 6px; flex-shrink: 0;
+        }
+        .card-qty-pill button {
+          width: 22px; height: 22px; border-radius: 7px;
+          border: none; background: rgba(255,255,255,0.12);
+          color: #fff; font-size: 15px; font-weight: 700;
+          cursor: pointer; display: flex; align-items: center; justify-content: center;
+          transition: transform .1s, background .15s;
+        }
+        .card-qty-pill button:active { transform: scale(0.85); background: rgba(255,255,255,0.22); }
+        .card-qty-pill button.plus { background: #FFCC00; color: #111; }
+        .card-qty-pill .card-qty-num {
+          color: #fff; font-size: 13px; font-weight: 800;
+          min-width: 16px; text-align: center;
+        }
+
+        .card.in-cart::after {
           content: ''; position: absolute; inset: 0;
-          border-radius: 20px; border: 2.5px solid #FFCC00;
+          border-radius: 20px; border: 2px solid #FFCC00;
           pointer-events: none;
         }
 
@@ -281,14 +369,15 @@ export default function MiniApp() {
           padding: 0 0 env(safe-area-inset-bottom, 0);
           transform: translateY(110%);
           transition: transform .32s cubic-bezier(0.34, 1.1, 0.64, 1);
+          max-height: 88vh; display: flex; flex-direction: column;
         }
         .sheet.open { transform: translateY(0); }
 
         .sheet-handle {
           width: 36px; height: 4px; background: #e0e0e0;
-          border-radius: 2px; margin: 12px auto 16px;
+          border-radius: 2px; margin: 12px auto 16px; flex-shrink: 0;
         }
-        .sheet-inner { padding: 0 20px 24px; }
+        .sheet-inner { padding: 0 20px 24px; overflow-y: auto; }
 
         .sheet-product { display: flex; gap: 14px; margin-bottom: 20px; }
         .sheet-img {
@@ -328,6 +417,8 @@ export default function MiniApp() {
         .total-label { font-size: 14px; color: #999; font-weight: 600; }
         .total-amount { font-size: 18px; font-weight: 900; color: #111; }
 
+        .sheet-actions { display: flex; gap: 10px; }
+
         .order-btn {
           width: 100%; padding: 16px; border-radius: 18px;
           background: #FFCC00; border: none; cursor: pointer;
@@ -338,6 +429,15 @@ export default function MiniApp() {
         }
         .order-btn:active { transform: scale(0.98); }
         .order-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .remove-btn {
+          padding: 16px 18px; border-radius: 18px;
+          background: #fdecec; border: none; cursor: pointer;
+          font-size: 14px; font-weight: 800; color: #e74c3c;
+          transition: transform .15s;
+          flex-shrink: 0;
+        }
+        .remove-btn:active { transform: scale(0.96); }
 
         .float-bar {
           position: fixed; bottom: 16px; left: 16px; right: 16px; z-index: 35;
@@ -354,9 +454,23 @@ export default function MiniApp() {
           font-size: 13px; font-weight: 900;
           display: flex; align-items: center; justify-content: center;
           margin-right: 12px; flex-shrink: 0;
+          animation: pop .25s ease;
+        }
+        @keyframes pop {
+          0% { transform: scale(0.6); }
+          60% { transform: scale(1.15); }
+          100% { transform: scale(1); }
         }
         .float-label { color: #fff; font-size: 14px; font-weight: 800; flex: 1; }
         .float-price { color: #FFCC00; font-size: 14px; font-weight: 900; }
+
+        .float-bar-enter {
+          animation: slideUp .3s cubic-bezier(0.34, 1.1, 0.64, 1);
+        }
+        @keyframes slideUp {
+          from { transform: translateY(120%); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
 
         @keyframes spin { to { transform: rotate(360deg); } }
         .spinner {
@@ -365,6 +479,51 @@ export default function MiniApp() {
           border-top-color: #111; animation: spin .7s linear infinite;
         }
         .main-content { padding-bottom: 100px; }
+
+        /* Savat ro'yxati */
+        .cart-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
+        .cart-row {
+          display: flex; align-items: center; gap: 12px;
+          background: #f7f7f8; border-radius: 16px; padding: 10px 12px;
+          animation: fadeIn .25s ease;
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .cart-row-img {
+          width: 50px; height: 50px; border-radius: 12px;
+          object-fit: cover; background: #eee; flex-shrink: 0;
+        }
+        .cart-row-img-placeholder {
+          width: 50px; height: 50px; border-radius: 12px;
+          background: #eee; display: flex; align-items: center;
+          justify-content: center; font-size: 22px; flex-shrink: 0;
+        }
+        .cart-row-body { flex: 1; min-width: 0; }
+        .cart-row-name {
+          font-size: 13px; font-weight: 800; color: #111;
+          margin-bottom: 2px;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .cart-row-price { font-size: 12px; color: #999; font-weight: 600; }
+        .cart-row-controls {
+          display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+        }
+        .cart-row-controls button {
+          width: 26px; height: 26px; border-radius: 8px;
+          border: none; cursor: pointer; display: flex;
+          align-items: center; justify-content: center;
+          font-size: 16px; font-weight: 700; transition: transform .1s;
+          background: #fff; color: #333; box-shadow: 0 1px 3px rgba(0,0,0,.08);
+        }
+        .cart-row-controls button.plus { background: #FFCC00; color: #111; box-shadow:none; }
+        .cart-row-controls button:active { transform: scale(0.85); }
+        .cart-row-qty { font-size: 13px; font-weight: 800; color: #111; min-width: 16px; text-align: center; }
+
+        .cart-empty {
+          text-align: center; padding: 40px 20px; color: #aaa;
+        }
       `}</style>
 
       {/* HEADER */}
@@ -416,11 +575,11 @@ export default function MiniApp() {
               )}
               <div style={{ paddingTop: categories.length === 1 ? 12 : 0 }}>
                 {grouped[cat].map((p) => {
-                  const isSelected = selected?._id === p._id;
+                  const inCartQty = cart[p._id] || 0;
                   return (
                     <div
                       key={p._id}
-                      className={`card${isSelected ? " selected" : ""}`}
+                      className={`card${inCartQty > 0 ? " in-cart" : ""}`}
                       onClick={() => openSheet(p)}
                     >
                       {p.image ? (
@@ -439,12 +598,35 @@ export default function MiniApp() {
                           <div className="card-price">
                             {p.price > 0 ? `${fmt(p.price)} ${tx.currency}` : "—"}
                           </div>
-                          <button
-                            className="card-add"
-                            onClick={(e) => { e.stopPropagation(); openSheet(p); }}
-                          >
-                            {isSelected ? "✓" : "+"}
-                          </button>
+                          {inCartQty > 0 ? (
+                            <div
+                              className="card-qty-pill"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                onClick={() => setCartQty(p._id, inCartQty - 1)}
+                              >
+                                −
+                              </button>
+                              <span className="card-qty-num">{inCartQty}</span>
+                              <button
+                                className="plus"
+                                onClick={() => setCartQty(p._id, inCartQty + 1)}
+                              >
+                                +
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              className="card-add"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCartQty(p._id, 1);
+                              }}
+                            >
+                              +
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -456,7 +638,7 @@ export default function MiniApp() {
         )}
       </div>
 
-      {/* BOTTOM SHEET */}
+      {/* MAHSULOT SHEET (bitta mahsulot miqdorini tahrirlash) */}
       {sheetMounted && (
         <>
           <div
@@ -511,36 +693,104 @@ export default function MiniApp() {
                 </div>
               )}
 
-              <button
-                className="order-btn"
-                onClick={handleOrder}
-                disabled={sending}
-              >
-                {sending ? (
-                  <div className="spinner" />
-                ) : (
-                  <>
-                    <span>{tx.order}</span>
-                    {selected?.price > 0 && (
-                      <span style={{ opacity: 0.65, fontWeight: 700, fontSize: 13 }}>
-                        · {fmt((selected.price || 0) * quantity)} {tx.currency}
-                      </span>
-                    )}
-                  </>
+              <div className="sheet-actions">
+                {cart[selected?._id] > 0 && (
+                  <button className="remove-btn" onClick={removeSelectedFromCart}>
+                    {tx.removeItem}
+                  </button>
                 )}
-              </button>
+                <button className="order-btn" onClick={confirmAddToCart}>
+                  <span>{cart[selected?._id] > 0 ? tx.updateCart : tx.addToCart}</span>
+                </button>
+              </div>
             </div>
           </div>
         </>
       )}
 
-      {/* FLOAT BAR */}
-      {selected && !sheetOpen && !sheetMounted && (
-        <div className="float-bar" onClick={() => openSheet(selected)}>
-          <div className="float-badge">{quantity}</div>
+      {/* SAVAT SHEET */}
+      {cartSheetMounted && (
+        <>
+          <div
+            className={`backdrop${cartSheetOpen ? " open" : ""}`}
+            onClick={closeCartSheet}
+          />
+          <div className={`sheet${cartSheetOpen ? " open" : ""}`}>
+            <div className="sheet-handle" />
+            <div className="sheet-inner">
+              <div style={{ fontSize: 18, fontWeight: 900, color: "#111", marginBottom: 16 }}>
+                {tx.cartTitle}
+              </div>
+
+              {cartEntries.length === 0 ? (
+                <div className="cart-empty">
+                  <div style={{ fontSize: 40, marginBottom: 8 }}>🛒</div>
+                  <p style={{ fontSize: 14, fontWeight: 600 }}>{tx.cartEmpty}</p>
+                </div>
+              ) : (
+                <>
+                  <div className="cart-list">
+                    {cartEntries.map(([productId, qty]) => {
+                      const p = productMap.current[productId];
+                      if (!p) return null;
+                      return (
+                        <div key={productId} className="cart-row">
+                          {p.image ? (
+                            <img src={p.image} alt={p.name} className="cart-row-img" />
+                          ) : (
+                            <div className="cart-row-img-placeholder">🍕</div>
+                          )}
+                          <div className="cart-row-body">
+                            <div className="cart-row-name">{p.name}</div>
+                            <div className="cart-row-price">
+                              {fmt(p.price)} {tx.currency}
+                            </div>
+                          </div>
+                          <div className="cart-row-controls">
+                            <button onClick={() => setCartQty(productId, qty - 1)}>−</button>
+                            <span className="cart-row-qty">{qty}</span>
+                            <button className="plus" onClick={() => setCartQty(productId, qty + 1)}>+</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="total-row">
+                    <span className="total-label">{tx.total}</span>
+                    <span className="total-amount">{fmt(cartTotal)} {tx.currency}</span>
+                  </div>
+
+                  <button
+                    className="order-btn"
+                    onClick={handleOrder}
+                    disabled={sending}
+                  >
+                    {sending ? (
+                      <div className="spinner" />
+                    ) : (
+                      <>
+                        <span>{tx.order}</span>
+                        <span style={{ opacity: 0.65, fontWeight: 700, fontSize: 13 }}>
+                          · {fmt(cartTotal)} {tx.currency}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* FLOAT BAR — savat ko'rinishi */}
+      {cartCount > 0 && !cartSheetOpen && !cartSheetMounted && !sheetOpen && !sheetMounted && (
+        <div className="float-bar float-bar-enter" onClick={openCartSheet}>
+          <div className="float-badge">{cartCount}</div>
           <span className="float-label">{tx.viewCart}</span>
           <span className="float-price">
-            {fmt((selected.price || 0) * quantity)} {tx.currency}
+            {fmt(cartTotal)} {tx.currency}
           </span>
         </div>
       )}

@@ -11,35 +11,41 @@ const PERIODS = [
   { key: "1y", label: "1 год", days: 365 },
 ];
 
-const STATUS_MAP = {
-  new: { label: "Yangi", color: "text-amber-300", bg: "bg-amber-500/15 border-amber-500/25", dot: "bg-amber-400" },
-  accepted: { label: "Qabul qilindi", color: "text-blue-300", bg: "bg-blue-500/15 border-blue-500/25", dot: "bg-blue-400" },
-  delivered: { label: "Yetkazildi", color: "text-teal-300", bg: "bg-teal-500/15 border-teal-500/25", dot: "bg-teal-400" },
-  cancelled: { label: "Bekor qilindi", color: "text-rose-300", bg: "bg-rose-500/15 border-rose-500/25", dot: "bg-rose-400" },
-};
-
 const RANK = [
   "bg-amber-400/15 text-amber-400 ring-1 ring-amber-400/25",
   "bg-slate-400/15 text-slate-300 ring-1 ring-slate-400/25",
   "bg-orange-500/15 text-orange-400 ring-1 ring-orange-500/25",
 ];
 
-const dayKey = (date) => {
-  const d = new Date(date);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
+function getOrderTotal(order) {
+  if (typeof order.totalPrice === "number") return order.totalPrice;
+  return (order.items || []).reduce(
+    (sum, i) => sum + (i.price ?? i.product?.price ?? 0) * (i.quantity || 0),
+    0
+  );
+}
+
+function formatDateTime(dateStr) {
+  if (!dateStr) return "—";
+  return new Date(dateStr).toLocaleString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 // ─── Stat Card ─────────────────────────────────────────────────────────────────
 const StatCard = ({ icon, label, value, sub, color, badge }) => {
   const colors = {
     indigo: { bar: "bg-indigo-500", num: "text-indigo-300" },
-    amber: { bar: "bg-amber-500", num: "text-amber-300" },
-    teal: { bar: "bg-teal-500", num: "text-teal-300" },
-    rose: { bar: "bg-rose-500", num: "text-rose-300" },
-    blue: { bar: "bg-blue-500", num: "text-blue-300" },
+    amber:  { bar: "bg-amber-500",  num: "text-amber-300"  },
+    teal:   { bar: "bg-teal-500",   num: "text-teal-300"   },
+    rose:   { bar: "bg-rose-500",   num: "text-rose-300"   },
+    blue:   { bar: "bg-blue-500",   num: "text-blue-300"   },
   };
   const c = colors[color] || colors.indigo;
-
   return (
     <div className="bg-[#0d0f1c] border border-slate-800/60 rounded-2xl p-5 relative overflow-hidden hover:-translate-y-0.5 transition-transform duration-200">
       <div className={`absolute top-0 left-0 w-0.5 h-full ${c.bar}`} />
@@ -52,21 +58,23 @@ const StatCard = ({ icon, label, value, sub, color, badge }) => {
       </div>
       <p className="text-[11px] text-slate-600 mt-4 flex justify-between items-center">
         {sub && <span>{sub}</span>}
-        {badge && <span className={`${c.num} font-bold bg-slate-800/60 px-1.5 py-0.5 rounded text-[10px]`}>{badge}</span>}
+        {badge && (
+          <span className={`${c.num} font-bold bg-slate-800/60 px-1.5 py-0.5 rounded text-[10px]`}>
+            {badge}
+          </span>
+        )}
       </p>
     </div>
   );
 };
 
-// ─── Main Page ─────────────────────────────────────────────────────────────────
+// ─── Main ──────────────────────────────────────────────────────────────────────
 const ClientAnalytics = () => {
-  const [orders, setOrders] = useState([]);
-  const [history, setHistory] = useState([]);
+  const [allOrders, setAllOrders] = useState([]);
   const [period, setPeriod] = useState("1m");
   const [loading, setLoading] = useState(true);
 
-  // computed states
-  const [stats, setStats] = useState({ total: 0, delivered: 0, cancelled: 0, new: 0, accepted: 0 });
+  const [stats, setStats] = useState({ total: 0, delivered: 0, cancelled: 0, active: 0 });
   const [topProducts, setTopProducts] = useState([]);
   const [topClients, setTopClients] = useState([]);
   const [revenueStats, setRevenueStats] = useState({ total: 0, avg: 0 });
@@ -78,23 +86,18 @@ const ClientAnalytics = () => {
   }, []);
 
   useEffect(() => {
-    if (orders.length || history.length) {
-      compute([...orders, ...history], period);
-    }
-  }, [period, orders, history]);
+    if (allOrders.length) compute(allOrders, period);
+  }, [period, allOrders]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [ordersRes, historyRes] = await Promise.all([
-        axios.get("/clientOrders"),
-        axios.get("/clientHistory"),
-      ]);
-      const allOrders = Array.isArray(ordersRes.data) ? ordersRes.data : [];
-      const allHistory = Array.isArray(historyRes.data) ? historyRes.data : [];
-      setOrders(allOrders);
-      setHistory(allHistory);
-      compute([...allOrders, ...allHistory], "1m");
+      // Ikkalasi ham bir xil endpoint — active va history bitta joyda
+      const res = await axios.get("/api/bot/orders");
+      const raw = res.data?.data ?? res.data;
+      const orders = Array.isArray(raw) ? raw : [];
+      setAllOrders(orders);
+      compute(orders, "1m");
     } catch (err) {
       console.error("Xatolik:", err);
     } finally {
@@ -102,24 +105,24 @@ const ClientAnalytics = () => {
     }
   };
 
-  const compute = (all, selectedPeriod) => {
+  const compute = (orders, selectedPeriod) => {
     const periodDays = PERIODS.find((p) => p.key === selectedPeriod)?.days || 30;
     const cutoff = new Date(Date.now() - periodDays * 86400000);
+    const filtered = orders.filter((o) => o?.createdAt && new Date(o.createdAt) >= cutoff);
 
-    const filtered = all.filter((o) => o?.createdAt && new Date(o.createdAt) >= cutoff);
+    // ── Статус (все время)
+    const delivered = orders.filter((o) => o.status === "delivered").length;
+    const cancelled = orders.filter((o) => o.status === "cancelled").length;
+    const active = orders.filter((o) => o.status === "new" || o.status === "accepted").length;
+    setStats({ total: orders.length, delivered, cancelled, active });
 
-    // ── Status counts (all time)
-    const statusCounts = { new: 0, accepted: 0, delivered: 0, cancelled: 0 };
-    all.forEach((o) => { if (o?.status && statusCounts[o.status] !== undefined) statusCounts[o.status]++; });
-    setStats({ total: all.length, ...statusCounts });
-
-    // ── Top products (period)
+    // ── Топ товары (за период)
     const prodMap = {};
     filtered.forEach((order) => {
       (order.items || []).forEach((item) => {
-        const name = item?.product?.name || "Noma'lum";
+        const name = item?.product?.name || "Неизвестно";
         const qty = item?.quantity || 0;
-        const rev = (item?.price || 0) * qty;
+        const rev = (item?.price ?? item?.product?.price ?? 0) * qty;
         if (!prodMap[name]) prodMap[name] = { qty: 0, revenue: 0 };
         prodMap[name].qty += qty;
         prodMap[name].revenue += rev;
@@ -132,15 +135,14 @@ const ClientAnalytics = () => {
         .slice(0, 7)
     );
 
-    // ── Top clients (period)
+    // ── Топ клиенты (за период)
     const clientMap = {};
     filtered.forEach((order) => {
-      const user = order?.botUser;
-      const id = user?._id || order?.telegramId;
+      const id = order?.botUser?._id || order?.telegramId;
       if (!id) return;
-      const name = user?.fullName || user?.firstName || `TG: ${order?.telegramId}`;
-      const phone = user?.phone || "";
-      const total = order?.totalPrice || 0;
+      const name = order?.botUser?.fullName || order?.botUser?.firstName || `TG: ${order?.telegramId}`;
+      const phone = order?.botUser?.phone || "";
+      const total = getOrderTotal(order);
       if (!clientMap[id]) clientMap[id] = { name, phone, orderCount: 0, totalSpent: 0 };
       clientMap[id].orderCount++;
       clientMap[id].totalSpent += total;
@@ -151,13 +153,13 @@ const ClientAnalytics = () => {
         .slice(0, 7)
     );
 
-    // ── Revenue (period, delivered only)
+    // ── Выручка (за период, только delivered)
     const deliveredFiltered = filtered.filter((o) => o?.status === "delivered");
-    const totalRevenue = deliveredFiltered.reduce((sum, o) => sum + (o?.totalPrice || 0), 0);
+    const totalRevenue = deliveredFiltered.reduce((sum, o) => sum + getOrderTotal(o), 0);
     const avgOrder = deliveredFiltered.length > 0 ? Math.round(totalRevenue / deliveredFiltered.length) : 0;
     setRevenueStats({ total: totalRevenue, avg: avgOrder });
 
-    // ── Trend sparkline (delivered, period)
+    // ── Sparkline тренд
     const bucketCount = Math.min(14, periodDays);
     const bucketSizeDays = periodDays / bucketCount;
     const now = Date.now();
@@ -166,28 +168,35 @@ const ClientAnalytics = () => {
       const ageDays = (now - new Date(o.createdAt).getTime()) / 86400000;
       let idx = bucketCount - 1 - Math.floor(ageDays / bucketSizeDays);
       idx = Math.max(0, Math.min(bucketCount - 1, idx));
-      buckets[idx] += o?.totalPrice || 0;
+      buckets[idx] += getOrderTotal(o);
     });
     setTrend(buckets);
 
-    // ── Recent orders (all combined, last 5)
+    // ── Последние заказы (5 шт)
     setRecentOrders(
-      [...all]
+      [...orders]
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
         .slice(0, 5)
     );
   };
 
-  const maxProd = topProducts.length ? Math.max(...topProducts.map((p) => p.qty), 1) : 1;
-  const maxClient = topClients.length ? Math.max(...topClients.map((c) => c.totalSpent), 1) : 1;
-  const maxTrend = trend.length ? Math.max(...trend, 1) : 1;
+  const maxProd   = topProducts.length ? Math.max(...topProducts.map((p) => p.qty), 1) : 1;
+  const maxClient = topClients.length  ? Math.max(...topClients.map((c) => c.totalSpent), 1) : 1;
+  const maxTrend  = trend.length       ? Math.max(...trend, 1) : 1;
+
+  const STATUS_LABEL = {
+    new:       { label: "Ожидание",  dot: "bg-amber-400",   color: "text-amber-300",   bg: "bg-amber-500/15 border-amber-500/25"   },
+    accepted:  { label: "Принят",    dot: "bg-blue-400",    color: "text-blue-300",    bg: "bg-blue-500/15 border-blue-500/25"     },
+    delivered: { label: "Выполнен",  dot: "bg-teal-400",    color: "text-teal-300",    bg: "bg-teal-500/15 border-teal-500/25"     },
+    cancelled: { label: "Отменён",   dot: "bg-rose-400",    color: "text-rose-300",    bg: "bg-rose-500/15 border-rose-500/25"     },
+  };
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#090b16]">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
-          <p className="text-xs text-slate-500">Ma'lumotlar yuklanmoqda...</p>
+          <p className="text-xs text-slate-500">Загрузка данных...</p>
         </div>
       </div>
     );
@@ -196,17 +205,17 @@ const ClientAnalytics = () => {
   return (
     <div className="max-w-6xl mx-auto p-4 flex flex-col gap-6 select-none text-slate-200">
 
-      {/* ── HEADER ── */}
+      {/* ── ЗАГОЛОВОК ── */}
       <div className="relative bg-[#0d0f1c] border border-indigo-900/40 rounded-2xl p-6 sm:p-8 overflow-hidden">
         <div className="absolute inset-0 bg-linear-to-br from-indigo-900/20 via-transparent to-transparent pointer-events-none" />
         <div className="absolute top-0 right-0 w-72 h-40 bg-indigo-600/8 rounded-full blur-3xl pointer-events-none" />
         <div className="flex items-start justify-between flex-wrap gap-4">
           <div>
             <h1 className="relative text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              📱 Mijozlar Analitikasi
+              📊 Аналитика клиентов
             </h1>
             <p className="relative text-slate-400 text-sm mt-2 max-w-xl leading-relaxed">
-              Telegram bot orqali kelgan buyurtmalar va mijozlar statistikasi.
+              Статистика заказов и клиентов из Telegram бота.
             </p>
           </div>
           <button
@@ -216,22 +225,22 @@ const ClientAnalytics = () => {
             <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            Yangilash
+            Обновить
           </button>
         </div>
       </div>
 
-      {/* ── STATS CARDS ── */}
+      {/* ── КАРТОЧКИ СТАТИСТИКИ ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <StatCard icon="📦" label="Jami buyurtmalar" value={stats.total} color="indigo" sub="Barcha vaqt" />
-        <StatCard icon="✅" label="Yetkazildi" value={stats.delivered} color="teal" sub="Muvaffaqiyatli" />
-        <StatCard icon="⏳" label="Yangi / Qabul" value={stats.new + stats.accepted} color="amber" sub="Jarayonda" badge={`${stats.new} yangi`} />
-        <StatCard icon="❌" label="Bekor qilindi" value={stats.cancelled} color="rose" sub="Rad etilgan" />
+        <StatCard icon="📦" label="Всего заказов"   value={stats.total}     color="indigo" sub="За всё время" />
+        <StatCard icon="✅" label="Выполнено"        value={stats.delivered} color="teal"   sub="Успешно доставлено" />
+        <StatCard icon="⏳" label="Активные"         value={stats.active}    color="amber"  sub="В обработке" />
+        <StatCard icon="❌" label="Отменено"          value={stats.cancelled} color="rose"   sub="Отменённые заказы" />
       </div>
 
-      {/* ── PERIOD SELECTOR ── */}
+      {/* ── ПЕРИОД ── */}
       <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Davr:</span>
+        <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Период:</span>
         <div className="flex gap-0.5 bg-slate-900/70 p-1 rounded-xl border border-slate-800/60">
           {PERIODS.map((p) => (
             <button
@@ -247,17 +256,17 @@ const ClientAnalytics = () => {
         </div>
       </div>
 
-      {/* ── TOP PRODUCTS + TOP CLIENTS ── */}
+      {/* ── ТОП ТОВАРЫ + ТОП КЛИЕНТЫ ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
-        {/* Top Products */}
+        {/* Топ товары */}
         <div className="bg-[#0d0f1c] border border-slate-800/60 p-5 rounded-2xl flex flex-col gap-4">
           <div>
-            <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">🔥 Top mahsulotlar</h3>
-            <p className="text-xs text-slate-500 mt-0.5">Tanlangan davrda sotilgan miqdor bo'yicha</p>
+            <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">🔥 Топ товары</h3>
+            <p className="text-xs text-slate-500 mt-0.5">По количеству проданных единиц за период</p>
           </div>
           {topProducts.length === 0 ? (
-            <div className="text-center py-10 text-xs text-slate-600">Bu davrda ma'lumot yo'q</div>
+            <div className="text-center py-10 text-xs text-slate-600">Нет данных за этот период</div>
           ) : (
             <div className="flex flex-col gap-3">
               {topProducts.map((item, idx) => {
@@ -288,14 +297,14 @@ const ClientAnalytics = () => {
           )}
         </div>
 
-        {/* Top Clients */}
+        {/* Топ клиенты */}
         <div className="bg-[#0d0f1c] border border-slate-800/60 p-5 rounded-2xl flex flex-col gap-4">
           <div>
-            <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">👑 Top mijozlar</h3>
-            <p className="text-xs text-slate-500 mt-0.5">Tanlangan davrda eng ko'p xarid qilganlar</p>
+            <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">👑 Топ клиенты</h3>
+            <p className="text-xs text-slate-500 mt-0.5">По сумме покупок за выбранный период</p>
           </div>
           {topClients.length === 0 ? (
-            <div className="text-center py-10 text-xs text-slate-600">Bu davrda ma'lumot yo'q</div>
+            <div className="text-center py-10 text-xs text-slate-600">Нет данных за этот период</div>
           ) : (
             <div className="flex flex-col gap-3">
               {topClients.map((client, idx) => {
@@ -314,7 +323,7 @@ const ClientAnalytics = () => {
                       </span>
                       <div className="text-right shrink-0">
                         <div className="font-mono text-teal-300 font-bold">{formatPrice(client.totalSpent)} сум</div>
-                        <div className="text-[10px] text-slate-500 font-mono">{client.orderCount} buyurtma</div>
+                        <div className="text-[10px] text-slate-500 font-mono">{client.orderCount} заказов</div>
                       </div>
                     </div>
                     <div className="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden">
@@ -328,40 +337,33 @@ const ClientAnalytics = () => {
         </div>
       </div>
 
-      {/* ── REVENUE CARD ── */}
+      {/* ── ВЫРУЧКА ── */}
       <div className="bg-[#0d0f1c] border border-slate-800/60 rounded-2xl p-5 sm:p-6 flex flex-col gap-5">
         <div>
-          <h4 className="text-sm font-bold text-slate-200 flex items-center gap-2">💰 Daromad ko'rsatkichlari</h4>
-          <p className="text-xs text-slate-500 mt-0.5">Faqat yetkazib berilgan buyurtmalar bo'yicha</p>
+          <h4 className="text-sm font-bold text-slate-200 flex items-center gap-2">💰 Финансовые показатели</h4>
+          <p className="text-xs text-slate-500 mt-0.5">Только по выполненным заказам</p>
         </div>
-
         <div className="relative rounded-2xl border border-teal-800/25 overflow-hidden">
           <div className="absolute inset-0 bg-linear-to-br from-teal-950/40 via-[#0c1218] to-[#0a0e14]" />
           <div className="absolute top-0 right-0 w-64 h-48 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
-
           <div className="relative p-5 sm:p-6 flex flex-col gap-5">
-            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-              <div className="flex flex-col gap-2">
-                <div className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold flex items-center gap-1.5">
-                  Umumiy daromad ·
-                  <span className="text-teal-400">{PERIODS.find((p) => p.key === period)?.label}</span>
-                </div>
-                <div className="flex items-baseline gap-2 flex-wrap">
-                  <span className="text-4xl sm:text-5xl font-black font-mono text-white tracking-tight leading-none">
-                    {formatPrice(revenueStats.total)}
-                  </span>
-                  <span className="text-base text-teal-400/80 font-bold">сум</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="bg-indigo-500/15 border border-indigo-500/20 text-indigo-300 font-mono font-bold text-xs px-3 py-1 rounded-lg">
-                    O'rtacha: {formatPrice(revenueStats.avg)} сум
-                  </span>
-                  <span className="text-[11px] text-slate-500">har bir buyurtmada</span>
-                </div>
+            <div className="flex flex-col gap-2">
+              <div className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold flex items-center gap-1.5">
+                Общая выручка ·
+                <span className="text-teal-400">{PERIODS.find((p) => p.key === period)?.label}</span>
+              </div>
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <span className="text-4xl sm:text-5xl font-black font-mono text-white tracking-tight leading-none">
+                  {formatPrice(revenueStats.total)}
+                </span>
+                <span className="text-base text-teal-400/80 font-bold">сум</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="bg-indigo-500/15 border border-indigo-500/20 text-indigo-300 font-mono font-bold text-xs px-3 py-1 rounded-lg">
+                  Средний чек: {formatPrice(revenueStats.avg)} сум
+                </span>
               </div>
             </div>
-
-            {/* sparkline */}
             {trend.some((v) => v > 0) && (
               <div className="flex items-end gap-0.5 h-14">
                 {trend.map((v, i) => {
@@ -386,16 +388,16 @@ const ClientAnalytics = () => {
         </div>
       </div>
 
-      {/* ── STATUS BREAKDOWN ── */}
+      {/* ── СТАТУСЫ ── */}
       <div className="bg-[#0d0f1c] border border-slate-800/60 rounded-2xl p-5 flex flex-col gap-4">
         <div>
-          <h4 className="text-sm font-bold text-slate-200">📊 Buyurtmalar holati</h4>
-          <p className="text-xs text-slate-500 mt-0.5">Barcha vaqt uchun holat bo'yicha taqsimot</p>
+          <h4 className="text-sm font-bold text-slate-200">📊 Распределение по статусам</h4>
+          <p className="text-xs text-slate-500 mt-0.5">За всё время</p>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {Object.entries(STATUS_MAP).map(([key, cfg]) => {
-            const count = stats[key] || 0;
-            const pct = stats.total > 0 ? Math.round((count / stats.total) * 100) : 0;
+          {Object.entries(STATUS_LABEL).map(([key, cfg]) => {
+            const count = allOrders.filter((o) => o.status === key).length;
+            const pct = allOrders.length > 0 ? Math.round((count / allOrders.length) * 100) : 0;
             return (
               <div key={key} className={`rounded-xl border p-4 ${cfg.bg}`}>
                 <div className="flex items-center gap-2 mb-2">
@@ -403,29 +405,30 @@ const ClientAnalytics = () => {
                   <span className={`text-[11px] font-bold uppercase tracking-wider ${cfg.color}`}>{cfg.label}</span>
                 </div>
                 <div className={`text-2xl font-black font-mono ${cfg.color}`}>{count}</div>
-                <div className="text-[10px] text-slate-600 font-mono mt-1">{pct}% jami</div>
+                <div className="text-[10px] text-slate-600 font-mono mt-1">{pct}% от всех</div>
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* ── RECENT ORDERS ── */}
+      {/* ── ПОСЛЕДНИЕ ЗАКАЗЫ ── */}
       <div className="bg-[#0d0f1c] border border-slate-800/60 p-5 rounded-2xl flex flex-col gap-4">
         <div>
-          <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">⚡ So'nggi buyurtmalar</h3>
-          <p className="text-xs text-slate-500 mt-0.5">Eng yangi 5 ta buyurtma</p>
+          <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">⚡ Последние заказы</h3>
+          <p className="text-xs text-slate-500 mt-0.5">5 самых последних заказов</p>
         </div>
         <div className="flex flex-col gap-3">
           {recentOrders.length === 0 ? (
-            <div className="text-center py-8 text-xs text-slate-600">Buyurtmalar yo'q</div>
+            <div className="text-center py-8 text-xs text-slate-600">Заказов пока нет</div>
           ) : (
             recentOrders.map((order, idx) => {
-              const cfg = STATUS_MAP[order.status] || STATUS_MAP.new;
-              const user = order?.botUser;
-              const clientName = user?.fullName || user?.firstName || `TG: ${order?.telegramId}`;
-              const itemsPreview = (order.items || []).slice(0, 2).map((i) => i?.product?.name || "Mahsulot").join(", ");
-              const moreCount = (order.items || []).length - 2;
+              const cfg = STATUS_LABEL[order.status] || STATUS_LABEL.new;
+              const clientName = order?.botUser?.fullName || order?.botUser?.firstName || `TG: ${order?.telegramId}`;
+              const items = order.items || [];
+              const itemsPreview = items.slice(0, 2).map((i) => i?.product?.name || "Товар").join(", ");
+              const moreCount = items.length - 2;
+              const total = getOrderTotal(order);
               return (
                 <div key={idx} className="flex items-start gap-3 text-xs group">
                   <span className={`mt-1 w-2 h-2 rounded-full shrink-0 ring-4 ring-slate-900/50 ${cfg.dot}`} />
@@ -438,15 +441,15 @@ const ClientAnalytics = () => {
                         </span>
                       </div>
                       <span className="text-[10px] text-slate-600 font-mono shrink-0">
-                        {order.createdAt ? new Date(order.createdAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}
+                        {formatDateTime(order.createdAt)}
                       </span>
                     </div>
                     <p className="text-slate-500 mt-1">
                       {itemsPreview}
-                      {moreCount > 0 && <span className="text-slate-600"> +{moreCount} ta</span>}
+                      {moreCount > 0 && <span className="text-slate-600"> +{moreCount} ещё</span>}
                     </p>
-                    {order.totalPrice > 0 && (
-                      <p className="text-teal-400/80 font-mono font-bold mt-0.5">{formatPrice(order.totalPrice)} сум</p>
+                    {total > 0 && (
+                      <p className="text-teal-400/80 font-mono font-bold mt-0.5">{formatPrice(total)} сум</p>
                     )}
                   </div>
                 </div>

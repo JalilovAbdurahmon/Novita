@@ -12,9 +12,9 @@ const PERIODS = [
 ];
 
 const RANK = [
-  "bg-amber-400/20 text-amber-300 ring-1 ring-amber-400/30",
-  "bg-slate-400/15 text-slate-300 ring-1 ring-slate-400/25",
-  "bg-orange-500/20 text-orange-300 ring-1 ring-orange-500/30",
+  "bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/30",
+  "bg-slate-500/20 text-slate-300 ring-1 ring-slate-500/30",
+  "bg-orange-600/20 text-orange-300 ring-1 ring-orange-600/30",
 ];
 
 const DAYS_RU = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
@@ -36,7 +36,7 @@ function formatDateTime(dateStr) {
 }
 
 // ─── Mini Sparkline ────────────────────────────────────────────────────────────
-const Sparkline = ({ data, color = "from-indigo-500 to-violet-500", height = "h-10" }) => {
+const Sparkline = ({ data, color = "from-indigo-600 to-violet-600", height = "h-10" }) => {
   const max = Math.max(...data, 1);
   return (
     <div className={`flex items-end gap-px ${height}`}>
@@ -46,7 +46,7 @@ const Sparkline = ({ data, color = "from-indigo-500 to-violet-500", height = "h-
           <div
             key={i}
             style={{ height: `${h}%` }}
-            className={`flex-1 rounded-t-sm bg-linear-to-t ${color} opacity-80 transition-all duration-500`}
+            className={`flex-1 rounded-t-sm bg-linear-to-t ${color} opacity-90 transition-all duration-500`}
           />
         );
       })}
@@ -56,8 +56,7 @@ const Sparkline = ({ data, color = "from-indigo-500 to-violet-500", height = "h-
 
 // ─── Stat Card ─────────────────────────────────────────────────────────────────
 const StatCard = ({ icon, label, value, sub, gradient, badge, delta }) => (
-  <div className={`relative rounded-2xl p-5 overflow-hidden border ${gradient.border}`}>
-    <div className={`absolute inset-0 ${gradient.bg} pointer-events-none`} />
+  <div className={`relative rounded-2xl p-5 overflow-hidden border ${gradient.border} ${gradient.bg}`}>
     <div className="relative flex justify-between items-start">
       <div>
         <p className={`text-[10px] font-black uppercase tracking-widest ${gradient.label}`}>{label}</p>
@@ -245,7 +244,7 @@ const ClientAnalytics = () => {
 
   if (loading) {
     return (
-      <div className="min-h-96 flex items-center justify-center">
+      <div className="min-h-96 flex items-center justify-center bg-[#0a0b12]">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
           <p className="text-xs text-slate-500 font-medium">Загрузка аналитики...</p>
@@ -255,27 +254,27 @@ const ClientAnalytics = () => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-4 flex flex-col gap-6 select-none text-slate-200">
+    <div className="max-w-6xl mx-auto p-4 flex flex-col gap-6 select-none text-slate-200 bg-[#0a0b12]">
 
       {/* ── HERO HEADER ───────────────────────────────────────────────────────── */}
-      <div className="relative rounded-3xl overflow-hidden border border-violet-800/30">
-        <div className="absolute inset-0 bg-linear-to-br from-violet-950/80 via-[#0d0f1c] to-indigo-950/60" />
-        <div className="absolute top-0 right-0 w-96 h-64 bg-violet-600/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-64 h-48 bg-indigo-600/8 rounded-full blur-3xl" />
+      <div className="relative rounded-3xl overflow-hidden border border-violet-900/40 bg-[#0d0f1c]">
+        <div className="absolute inset-0 bg-linear-to-br from-violet-950 via-[#0a0b15] to-indigo-950" />
+        <div className="absolute top-0 right-0 w-96 h-64 bg-violet-700/15 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-64 h-48 bg-indigo-700/12 rounded-full blur-3xl" />
         {/* Декоративные точки */}
         <div className="absolute top-4 right-4 flex gap-1.5">
           {["bg-rose-400", "bg-amber-400", "bg-teal-400"].map((c, i) => (
-            <div key={i} className={`w-2 h-2 rounded-full ${c} opacity-60`} />
+            <div key={i} className={`w-2 h-2 rounded-full ${c} opacity-70`} />
           ))}
         </div>
         <div className="relative p-6 sm:p-8 flex items-center justify-between gap-6 flex-wrap">
           <div>
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-2xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center text-xl">
+              <div className="w-10 h-10 rounded-2xl bg-violet-500/20 border border-violet-500/40 flex items-center justify-center text-xl">
                 📊
               </div>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-violet-400/70">CRM · Telegram Bot</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-violet-400">CRM · Telegram Bot</p>
                 <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-none">
                   Аналитика клиентов
                 </h1>
@@ -293,7 +292,7 @@ const ClientAnalytics = () => {
                 { v: computed.delivered, l: "Выполнено", c: "text-teal-300" },
                 { v: `${formatPrice(computed.totalRevenue)}`, l: "Выручка", c: "text-amber-300", small: true },
               ].map((s, i) => (
-                <div key={i} className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-center min-w-20">
+                <div key={i} className="bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-center min-w-20">
                   <div className={`font-black font-mono ${s.small ? "text-sm" : "text-lg"} ${s.c}`}>{s.v}</div>
                   <div className="text-[9px] text-slate-500 uppercase tracking-wider mt-0.5">{s.l}</div>
                 </div>
@@ -301,7 +300,7 @@ const ClientAnalytics = () => {
             </div>
             <button
               onClick={fetchData}
-              className="flex items-center gap-2 text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 px-4 py-2.5 rounded-xl transition-all duration-200"
+              className="flex items-center gap-2 text-xs font-bold text-slate-300 hover:text-white bg-black/30 hover:bg-white/10 border border-white/10 hover:border-white/20 px-4 py-2.5 rounded-xl transition-all duration-200"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -322,7 +321,7 @@ const ClientAnalytics = () => {
               onClick={() => setPeriod(p.key)}
               className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all duration-200 ${
                 period === p.key
-                  ? "bg-linear-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-900/40"
+                  ? "bg-linear-to-r from-violet-700 to-indigo-700 text-white shadow-lg shadow-violet-950/60"
                   : "text-slate-500 hover:text-slate-300"
               }`}
             >
@@ -344,9 +343,9 @@ const ClientAnalytics = () => {
             icon: "📦", label: "Всего заказов", value: allOrders.length,
             sub: "За всё время", delta: computed.ordersDelta,
             gradient: {
-              bg: "bg-linear-to-br from-violet-950/60 to-indigo-950/40",
-              border: "border-violet-800/30",
-              label: "text-violet-400/70", num: "text-violet-200",
+              bg: "bg-[#15142a]",
+              border: "border-violet-900/40",
+              label: "text-violet-400", num: "text-violet-200",
               iconBg: "bg-violet-500/15", badge: "text-violet-300 bg-violet-500/15",
             },
           },
@@ -355,9 +354,9 @@ const ClientAnalytics = () => {
             sub: "Успешно доставлено",
             badge: `${allOrders.length > 0 ? Math.round((computed.delivered / allOrders.length) * 100) : 0}% от всех`,
             gradient: {
-              bg: "bg-linear-to-br from-teal-950/60 to-cyan-950/40",
-              border: "border-teal-800/30",
-              label: "text-teal-400/70", num: "text-teal-200",
+              bg: "bg-[#0e1f1d]",
+              border: "border-teal-900/40",
+              label: "text-teal-400", num: "text-teal-200",
               iconBg: "bg-teal-500/15", badge: "text-teal-300 bg-teal-500/15",
             },
           },
@@ -365,9 +364,9 @@ const ClientAnalytics = () => {
             icon: "⏳", label: "Активные", value: computed.active,
             sub: "В обработке прямо сейчас",
             gradient: {
-              bg: "bg-linear-to-br from-amber-950/50 to-orange-950/30",
-              border: "border-amber-800/30",
-              label: "text-amber-400/70", num: "text-amber-200",
+              bg: "bg-[#241c0e]",
+              border: "border-amber-900/40",
+              label: "text-amber-400", num: "text-amber-200",
               iconBg: "bg-amber-500/15", badge: "text-amber-300 bg-amber-500/15",
             },
           },
@@ -376,9 +375,9 @@ const ClientAnalytics = () => {
             sub: "Отменённые заказы",
             badge: `${allOrders.length > 0 ? Math.round((computed.cancelled / allOrders.length) * 100) : 0}% от всех`,
             gradient: {
-              bg: "bg-linear-to-br from-rose-950/50 to-pink-950/30",
-              border: "border-rose-800/30",
-              label: "text-rose-400/70", num: "text-rose-200",
+              bg: "bg-[#240f14]",
+              border: "border-rose-900/40",
+              label: "text-rose-400", num: "text-rose-200",
               iconBg: "bg-rose-500/15", badge: "text-rose-300 bg-rose-500/15",
             },
           },
@@ -388,10 +387,10 @@ const ClientAnalytics = () => {
       </div>
 
       {/* ── ВЫРУЧКА ─────────────────────────────────────────────────────────────── */}
-      <div className="relative rounded-2xl overflow-hidden border border-teal-800/25">
-        <div className="absolute inset-0 bg-linear-to-br from-teal-950/50 via-[#0c1218] to-cyan-950/30" />
-        <div className="absolute top-0 right-0 w-80 h-56 bg-teal-500/8 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-1/3 w-48 h-36 bg-cyan-500/6 rounded-full blur-3xl" />
+      <div className="relative rounded-2xl overflow-hidden border border-teal-900/40 bg-[#0d0f1c]">
+        <div className="absolute inset-0 bg-linear-to-br from-teal-950/70 via-[#0a0e10] to-cyan-950/50" />
+        <div className="absolute top-0 right-0 w-80 h-56 bg-teal-600/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-1/3 w-48 h-36 bg-cyan-600/8 rounded-full blur-3xl" />
         <div className="relative p-6 sm:p-8 flex flex-col gap-6">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div className="flex flex-col gap-2">
@@ -405,22 +404,22 @@ const ClientAnalytics = () => {
                 <span className="text-4xl sm:text-5xl font-black font-mono text-white tracking-tight">
                   {formatPrice(computed.totalRevenue)}
                 </span>
-                <span className="text-lg text-teal-400/80 font-bold">сум</span>
+                <span className="text-lg text-teal-400 font-bold">сум</span>
                 {computed.revenueDelta !== 0 && (
                   <span className={`flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${
                     computed.revenueDelta >= 0
-                      ? "text-teal-300 bg-teal-500/10 border-teal-500/20"
-                      : "text-rose-300 bg-rose-500/10 border-rose-500/20"
+                      ? "text-teal-300 bg-teal-500/10 border-teal-500/30"
+                      : "text-rose-300 bg-rose-500/10 border-rose-500/30"
                   }`}>
                     {computed.revenueDelta >= 0 ? "▲" : "▼"} {Math.abs(computed.revenueDelta)}%
                   </span>
                 )}
               </div>
               <div className="flex gap-2 flex-wrap">
-                <span className="text-xs font-bold text-teal-300 bg-teal-500/10 border border-teal-500/20 px-3 py-1.5 rounded-lg font-mono">
+                <span className="text-xs font-bold text-teal-300 bg-teal-500/10 border border-teal-500/30 px-3 py-1.5 rounded-lg font-mono">
                   Средний чек: {formatPrice(computed.avgOrder)} сум
                 </span>
-                <span className="text-xs font-bold text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-3 py-1.5 rounded-lg font-mono">
+                <span className="text-xs font-bold text-indigo-300 bg-indigo-500/10 border border-indigo-500/30 px-3 py-1.5 rounded-lg font-mono">
                   {computed.topProducts.reduce((s, p) => s + p.qty, 0)} шт продано
                 </span>
               </div>
@@ -430,7 +429,7 @@ const ClientAnalytics = () => {
           {computed.trendBuckets.some((v) => v > 0) && (
             <div>
               <p className="text-[10px] text-slate-600 uppercase tracking-widest font-bold mb-2">Динамика выручки</p>
-              <Sparkline data={computed.trendBuckets} color="from-teal-600 to-cyan-400" height="h-16" />
+              <Sparkline data={computed.trendBuckets} color="from-teal-700 to-cyan-500" height="h-16" />
             </div>
           )}
         </div>
@@ -472,7 +471,7 @@ const ClientAnalytics = () => {
                     <div className="w-full h-2 bg-slate-900/80 rounded-full overflow-hidden">
                       <div
                         style={{ width: `${pct}%` }}
-                        className="h-full rounded-full bg-linear-to-r from-orange-500 via-amber-500 to-yellow-500 transition-all duration-700"
+                        className="h-full rounded-full bg-linear-to-r from-orange-600 via-amber-600 to-yellow-600 transition-all duration-700"
                       />
                     </div>
                   </div>
@@ -508,7 +507,7 @@ const ClientAnalytics = () => {
                           {client.phone && <span className="text-[10px] text-slate-500 font-normal">{client.phone}</span>}
                         </span>
                         {client.isNew && (
-                          <span className="text-[9px] font-black text-teal-400 bg-teal-500/10 border border-teal-500/20 px-1.5 py-0.5 rounded-full shrink-0">NEW</span>
+                          <span className="text-[9px] font-black text-teal-400 bg-teal-500/10 border border-teal-500/30 px-1.5 py-0.5 rounded-full shrink-0">NEW</span>
                         )}
                       </span>
                       <div className="text-right shrink-0">
@@ -519,7 +518,7 @@ const ClientAnalytics = () => {
                     <div className="w-full h-2 bg-slate-900/80 rounded-full overflow-hidden">
                       <div
                         style={{ width: `${pct}%` }}
-                        className="h-full rounded-full bg-linear-to-r from-violet-500 via-purple-500 to-indigo-500 transition-all duration-700"
+                        className="h-full rounded-full bg-linear-to-r from-violet-600 via-purple-600 to-indigo-600 transition-all duration-700"
                       />
                     </div>
                   </div>
@@ -555,10 +554,10 @@ const ClientAnalytics = () => {
             <div className="flex flex-col gap-2">
               {/* Группируем по 6-часовым блокам для читаемости */}
               {[
-                { label: "Ночь 00–05", hours: [0,1,2,3,4,5], color: "from-slate-600 to-slate-500" },
-                { label: "Утро 06–11", hours: [6,7,8,9,10,11], color: "from-amber-600 to-yellow-500" },
-                { label: "День 12–17", hours: [12,13,14,15,16,17], color: "from-orange-500 to-amber-400" },
-                { label: "Вечер 18–23", hours: [18,19,20,21,22,23], color: "from-violet-600 to-indigo-500" },
+                { label: "Ночь 00–05", hours: [0,1,2,3,4,5], color: "from-slate-700 to-slate-600" },
+                { label: "Утро 06–11", hours: [6,7,8,9,10,11], color: "from-amber-700 to-yellow-600" },
+                { label: "День 12–17", hours: [12,13,14,15,16,17], color: "from-orange-600 to-amber-600" },
+                { label: "Вечер 18–23", hours: [18,19,20,21,22,23], color: "from-violet-700 to-indigo-600" },
               ].map(({ label, hours, color }) => {
                 const total = hours.reduce((s, h) => s + computed.hourMap[h], 0);
                 const pct = Math.min(100, Math.round((total / (computed.filteredCount || 1)) * 100));
@@ -592,7 +591,7 @@ const ClientAnalytics = () => {
                         style={{ height: `${ht}%` }}
                         className={`flex-1 rounded-t-sm transition-all duration-500 ${
                           isPeak
-                            ? "bg-linear-to-t from-cyan-500 to-cyan-300"
+                            ? "bg-linear-to-t from-cyan-600 to-cyan-400"
                             : "bg-slate-700/60 hover:bg-slate-600/80"
                         }`}
                       />
@@ -632,7 +631,7 @@ const ClientAnalytics = () => {
                           style={{ height: `${ht}%` }}
                           className={`w-full rounded-t-lg transition-all duration-700 ${
                             isMax
-                              ? "bg-linear-to-t from-indigo-600 to-violet-400"
+                              ? "bg-linear-to-t from-indigo-700 to-violet-500"
                               : "bg-slate-800 hover:bg-slate-700"
                           }`}
                         />
@@ -661,8 +660,8 @@ const ClientAnalytics = () => {
               <div className="flex flex-col gap-3">
                 <div className="flex gap-3">
                   {[
-                    { label: "Новые клиенты", value: computed.newClients, color: "text-teal-300", bar: "from-teal-500 to-cyan-400", bg: "bg-teal-500/10 border-teal-500/20" },
-                    { label: "Вернувшиеся", value: computed.returningClients, color: "text-violet-300", bar: "from-violet-500 to-indigo-400", bg: "bg-violet-500/10 border-violet-500/20" },
+                    { label: "Новые клиенты", value: computed.newClients, color: "text-teal-300", bar: "from-teal-600 to-cyan-500", bg: "bg-teal-500/10 border-teal-500/30" },
+                    { label: "Вернувшиеся", value: computed.returningClients, color: "text-violet-300", bar: "from-violet-600 to-indigo-500", bg: "bg-violet-500/10 border-violet-500/30" },
                   ].map((s) => (
                     <div key={s.label} className={`flex-1 rounded-xl border p-3 ${s.bg}`}>
                       <div className={`text-2xl font-black font-mono ${s.color}`}>{s.value}</div>
@@ -684,11 +683,11 @@ const ClientAnalytics = () => {
                     <div className="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden flex">
                       <div
                         style={{ width: `${Math.round((computed.newClients / computed.totalClients) * 100)}%` }}
-                        className="h-full bg-linear-to-r from-teal-500 to-cyan-400 transition-all duration-700"
+                        className="h-full bg-linear-to-r from-teal-600 to-cyan-500 transition-all duration-700"
                       />
                       <div
                         style={{ width: `${Math.round((computed.returningClients / computed.totalClients) * 100)}%` }}
-                        className="h-full bg-linear-to-r from-violet-500 to-indigo-400 transition-all duration-700"
+                        className="h-full bg-linear-to-r from-violet-600 to-indigo-500 transition-all duration-700"
                       />
                     </div>
                   </div>
@@ -738,7 +737,7 @@ const ClientAnalytics = () => {
               const moreCount = items.length - 2;
               const total = getOrderTotal(order);
               return (
-                <div key={idx} className="flex items-center gap-3 p-3 rounded-xl bg-slate-900/30 hover:bg-slate-900/60 border border-slate-800/30 hover:border-slate-700/50 transition-all duration-200">
+                <div key={idx} className="flex items-center gap-3 p-3 rounded-xl bg-slate-900/50 hover:bg-slate-900/80 border border-slate-800/40 hover:border-slate-700/60 transition-all duration-200">
                   <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${cfg.dot}`} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">

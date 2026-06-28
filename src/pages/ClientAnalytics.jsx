@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import axios from "../utils/axios";
 
 const formatPrice = (num) => (num || 0).toLocaleString("ru-RU");
@@ -12,10 +12,12 @@ const PERIODS = [
 ];
 
 const RANK = [
-  "bg-amber-400/15 text-amber-400 ring-1 ring-amber-400/25",
+  "bg-amber-400/20 text-amber-300 ring-1 ring-amber-400/30",
   "bg-slate-400/15 text-slate-300 ring-1 ring-slate-400/25",
-  "bg-orange-500/15 text-orange-400 ring-1 ring-orange-500/25",
+  "bg-orange-500/20 text-orange-300 ring-1 ring-orange-500/30",
 ];
+
+const DAYS_RU = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
 
 function getOrderTotal(order) {
   if (typeof order.totalPrice === "number") return order.totalPrice;
@@ -28,45 +30,66 @@ function getOrderTotal(order) {
 function formatDateTime(dateStr) {
   if (!dateStr) return "—";
   return new Date(dateStr).toLocaleString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
   });
 }
 
-// ─── Stat Card ─────────────────────────────────────────────────────────────────
-const StatCard = ({ icon, label, value, sub, color, badge }) => {
-  const colors = {
-    indigo: { bar: "bg-indigo-500", num: "text-indigo-300" },
-    amber:  { bar: "bg-amber-500",  num: "text-amber-300"  },
-    teal:   { bar: "bg-teal-500",   num: "text-teal-300"   },
-    rose:   { bar: "bg-rose-500",   num: "text-rose-300"   },
-    blue:   { bar: "bg-blue-500",   num: "text-blue-300"   },
-  };
-  const c = colors[color] || colors.indigo;
+// ─── Mini Sparkline ────────────────────────────────────────────────────────────
+const Sparkline = ({ data, color = "from-indigo-500 to-violet-500", height = "h-10" }) => {
+  const max = Math.max(...data, 1);
   return (
-    <div className="bg-[#0d0f1c] border border-slate-800/60 rounded-2xl p-5 relative overflow-hidden hover:-translate-y-0.5 transition-transform duration-200">
-      <div className={`absolute top-0 left-0 w-0.5 h-full ${c.bar}`} />
-      <div className="flex justify-between items-start">
-        <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</p>
-          <h3 className={`text-3xl font-black mt-2 font-mono ${c.num}`}>{value}</h3>
-        </div>
-        <span className="text-xl bg-slate-800/50 p-2.5 rounded-xl">{icon}</span>
-      </div>
-      <p className="text-[11px] text-slate-600 mt-4 flex justify-between items-center">
-        {sub && <span>{sub}</span>}
-        {badge && (
-          <span className={`${c.num} font-bold bg-slate-800/60 px-1.5 py-0.5 rounded text-[10px]`}>
-            {badge}
-          </span>
-        )}
-      </p>
+    <div className={`flex items-end gap-px ${height}`}>
+      {data.map((v, i) => {
+        const h = Math.max(8, Math.round((v / max) * 100));
+        return (
+          <div
+            key={i}
+            style={{ height: `${h}%` }}
+            className={`flex-1 rounded-t-sm bg-linear-to-t ${color} opacity-80 transition-all duration-500`}
+          />
+        );
+      })}
     </div>
   );
 };
+
+// ─── Stat Card ─────────────────────────────────────────────────────────────────
+const StatCard = ({ icon, label, value, sub, gradient, badge, delta }) => (
+  <div className={`relative rounded-2xl p-5 overflow-hidden border ${gradient.border}`}>
+    <div className={`absolute inset-0 ${gradient.bg} pointer-events-none`} />
+    <div className="relative flex justify-between items-start">
+      <div>
+        <p className={`text-[10px] font-black uppercase tracking-widest ${gradient.label}`}>{label}</p>
+        <h3 className={`text-3xl font-black mt-2 font-mono ${gradient.num}`}>{value}</h3>
+        {delta !== undefined && (
+          <div className={`flex items-center gap-1 mt-1 text-[11px] font-bold ${delta >= 0 ? "text-teal-400" : "text-rose-400"}`}>
+            <span>{delta >= 0 ? "▲" : "▼"}</span>
+            <span>{Math.abs(delta)}% vs прошлый период</span>
+          </div>
+        )}
+      </div>
+      <span className={`text-2xl p-2.5 rounded-xl ${gradient.iconBg}`}>{icon}</span>
+    </div>
+    <p className="relative text-[11px] text-slate-500 mt-3 flex justify-between items-center">
+      {sub && <span>{sub}</span>}
+      {badge && <span className={`font-bold px-2 py-0.5 rounded-lg text-[10px] ${gradient.badge}`}>{badge}</span>}
+    </p>
+  </div>
+);
+
+// ─── Section Header ────────────────────────────────────────────────────────────
+const SectionHeader = ({ icon, title, sub, accent }) => (
+  <div className="flex items-start gap-3">
+    <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-base shrink-0 ${accent}`}>
+      {icon}
+    </div>
+    <div>
+      <h3 className="text-sm font-black text-white">{title}</h3>
+      {sub && <p className="text-[11px] text-slate-500 mt-0.5">{sub}</p>}
+    </div>
+  </div>
+);
 
 // ─── Main ──────────────────────────────────────────────────────────────────────
 const ClientAnalytics = () => {
@@ -74,49 +97,56 @@ const ClientAnalytics = () => {
   const [period, setPeriod] = useState("1m");
   const [loading, setLoading] = useState(true);
 
-  const [stats, setStats] = useState({ total: 0, delivered: 0, cancelled: 0, active: 0 });
-  const [topProducts, setTopProducts] = useState([]);
-  const [topClients, setTopClients] = useState([]);
-  const [revenueStats, setRevenueStats] = useState({ total: 0, avg: 0 });
-  const [recentOrders, setRecentOrders] = useState([]);
-  const [trend, setTrend] = useState([]);
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  useEffect(() => {
-    if (allOrders.length) compute(allOrders, period);
-  }, [period, allOrders]);
+  useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      // Ikkalasi ham bir xil endpoint — active va history bitta joyda
       const res = await axios.get("/api/bot/orders");
       const raw = res.data?.data ?? res.data;
-      const orders = Array.isArray(raw) ? raw : [];
-      setAllOrders(orders);
-      compute(orders, "1m");
+      setAllOrders(Array.isArray(raw) ? raw : []);
     } catch (err) {
-      console.error("Xatolik:", err);
+      console.error("Ошибка:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  const compute = (orders, selectedPeriod) => {
-    const periodDays = PERIODS.find((p) => p.key === selectedPeriod)?.days || 30;
-    const cutoff = new Date(Date.now() - periodDays * 86400000);
-    const filtered = orders.filter((o) => o?.createdAt && new Date(o.createdAt) >= cutoff);
+  // ── Все вычисления через useMemo ───────────────────────────────────────────
+  const computed = useMemo(() => {
+    const periodDays = PERIODS.find((p) => p.key === period)?.days || 30;
+    const now = Date.now();
+    const cutoff = new Date(now - periodDays * 86400000);
+    const prevCutoff = new Date(now - periodDays * 2 * 86400000);
 
-    // ── Статус (все время)
-    const delivered = orders.filter((o) => o.status === "delivered").length;
-    const cancelled = orders.filter((o) => o.status === "cancelled").length;
-    const active = orders.filter((o) => o.status === "new" || o.status === "accepted").length;
-    setStats({ total: orders.length, delivered, cancelled, active });
+    const filtered = allOrders.filter((o) => o?.createdAt && new Date(o.createdAt) >= cutoff);
+    const prevFiltered = allOrders.filter((o) => {
+      if (!o?.createdAt) return false;
+      const t = new Date(o.createdAt);
+      return t >= prevCutoff && t < cutoff;
+    });
 
-    // ── Топ товары (за период)
+    // Статус (все время)
+    const delivered = allOrders.filter((o) => o.status === "delivered").length;
+    const cancelled = allOrders.filter((o) => o.status === "cancelled").length;
+    const active = allOrders.filter((o) => o.status === "new" || o.status === "accepted").length;
+
+    // Выручка за период vs прошлый
+    const deliveredFiltered = filtered.filter((o) => o.status === "delivered");
+    const prevDelivered = prevFiltered.filter((o) => o.status === "delivered");
+    const totalRevenue = deliveredFiltered.reduce((s, o) => s + getOrderTotal(o), 0);
+    const prevRevenue = prevDelivered.reduce((s, o) => s + getOrderTotal(o), 0);
+    const revenueDelta = prevRevenue > 0
+      ? Math.round(((totalRevenue - prevRevenue) / prevRevenue) * 100)
+      : totalRevenue > 0 ? 100 : 0;
+
+    const ordersDelta = prevFiltered.length > 0
+      ? Math.round(((filtered.length - prevFiltered.length) / prevFiltered.length) * 100)
+      : filtered.length > 0 ? 100 : 0;
+
+    const avgOrder = deliveredFiltered.length > 0 ? Math.round(totalRevenue / deliveredFiltered.length) : 0;
+
+    // Топ товары
     const prodMap = {};
     filtered.forEach((order) => {
       (order.items || []).forEach((item) => {
@@ -128,75 +158,97 @@ const ClientAnalytics = () => {
         prodMap[name].revenue += rev;
       });
     });
-    setTopProducts(
-      Object.entries(prodMap)
-        .map(([name, d]) => ({ name, ...d }))
-        .sort((a, b) => b.qty - a.qty)
-        .slice(0, 7)
-    );
+    const topProducts = Object.entries(prodMap)
+      .map(([name, d]) => ({ name, ...d }))
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 7);
 
-    // ── Топ клиенты (за период)
+    // Топ клиенты
     const clientMap = {};
     filtered.forEach((order) => {
       const id = order?.botUser?._id || order?.telegramId;
       if (!id) return;
       const name = order?.botUser?.fullName || order?.botUser?.firstName || `TG: ${order?.telegramId}`;
       const phone = order?.botUser?.phone || "";
-      const total = getOrderTotal(order);
-      if (!clientMap[id]) clientMap[id] = { name, phone, orderCount: 0, totalSpent: 0 };
+      const isNew = !prevFiltered.some((o) =>
+        (o?.botUser?._id || o?.telegramId)?.toString() === id?.toString()
+      );
+      if (!clientMap[id]) clientMap[id] = { name, phone, orderCount: 0, totalSpent: 0, isNew };
       clientMap[id].orderCount++;
-      clientMap[id].totalSpent += total;
+      clientMap[id].totalSpent += getOrderTotal(order);
     });
-    setTopClients(
-      Object.values(clientMap)
-        .sort((a, b) => b.totalSpent - a.totalSpent)
-        .slice(0, 7)
+    const topClients = Object.values(clientMap)
+      .sort((a, b) => b.totalSpent - a.totalSpent)
+      .slice(0, 7);
+
+    // Новые vs вернувшиеся клиенты
+    const prevClientIds = new Set(
+      prevFiltered.map((o) => (o?.botUser?._id || o?.telegramId)?.toString()).filter(Boolean)
     );
+    const currClientIds = new Set(
+      filtered.map((o) => (o?.botUser?._id || o?.telegramId)?.toString()).filter(Boolean)
+    );
+    const returningClients = [...currClientIds].filter((id) => prevClientIds.has(id)).length;
+    const newClients = currClientIds.size - returningClients;
 
-    // ── Выручка (за период, только delivered)
-    const deliveredFiltered = filtered.filter((o) => o?.status === "delivered");
-    const totalRevenue = deliveredFiltered.reduce((sum, o) => sum + getOrderTotal(o), 0);
-    const avgOrder = deliveredFiltered.length > 0 ? Math.round(totalRevenue / deliveredFiltered.length) : 0;
-    setRevenueStats({ total: totalRevenue, avg: avgOrder });
+    // Peak hours — сколько заказов по часам
+    const hourMap = Array(24).fill(0);
+    filtered.forEach((o) => {
+      if (o?.createdAt) hourMap[new Date(o.createdAt).getHours()]++;
+    });
 
-    // ── Sparkline тренд
+    // По дням недели
+    const dayMap = Array(7).fill(0);
+    filtered.forEach((o) => {
+      if (o?.createdAt) dayMap[new Date(o.createdAt).getDay()]++;
+    });
+
+    // Sparkline тренд
     const bucketCount = Math.min(14, periodDays);
     const bucketSizeDays = periodDays / bucketCount;
-    const now = Date.now();
-    const buckets = Array(bucketCount).fill(0);
+    const trendBuckets = Array(bucketCount).fill(0);
     deliveredFiltered.forEach((o) => {
       const ageDays = (now - new Date(o.createdAt).getTime()) / 86400000;
       let idx = bucketCount - 1 - Math.floor(ageDays / bucketSizeDays);
       idx = Math.max(0, Math.min(bucketCount - 1, idx));
-      buckets[idx] += getOrderTotal(o);
+      trendBuckets[idx] += getOrderTotal(o);
     });
-    setTrend(buckets);
 
-    // ── Последние заказы (5 шт)
-    setRecentOrders(
-      [...orders]
-        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-        .slice(0, 5)
-    );
+    // Последние 5
+    const recentOrders = [...allOrders]
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 5);
+
+    const peakHour = hourMap.indexOf(Math.max(...hourMap));
+
+    return {
+      total: allOrders.length, delivered, cancelled, active,
+      filteredCount: filtered.length, ordersDelta,
+      totalRevenue, prevRevenue, revenueDelta, avgOrder,
+      topProducts, topClients,
+      newClients, returningClients, totalClients: currClientIds.size,
+      hourMap, dayMap, trendBuckets, recentOrders, peakHour,
+    };
+  }, [allOrders, period]);
+
+  const STATUS_CFG = {
+    new:       { label: "Ожидание", dot: "bg-amber-400",  color: "text-amber-300",  bg: "bg-amber-500/10  border border-amber-500/20"  },
+    accepted:  { label: "Принят",   dot: "bg-blue-400",   color: "text-blue-300",   bg: "bg-blue-500/10   border border-blue-500/20"   },
+    delivered: { label: "Выполнен", dot: "bg-teal-400",   color: "text-teal-300",   bg: "bg-teal-500/10   border border-teal-500/20"   },
+    cancelled: { label: "Отменён",  dot: "bg-rose-400",   color: "text-rose-300",   bg: "bg-rose-500/10   border border-rose-500/20"   },
   };
 
-  const maxProd   = topProducts.length ? Math.max(...topProducts.map((p) => p.qty), 1) : 1;
-  const maxClient = topClients.length  ? Math.max(...topClients.map((c) => c.totalSpent), 1) : 1;
-  const maxTrend  = trend.length       ? Math.max(...trend, 1) : 1;
-
-  const STATUS_LABEL = {
-    new:       { label: "Ожидание",  dot: "bg-amber-400",   color: "text-amber-300",   bg: "bg-amber-500/15 border-amber-500/25"   },
-    accepted:  { label: "Принят",    dot: "bg-blue-400",    color: "text-blue-300",    bg: "bg-blue-500/15 border-blue-500/25"     },
-    delivered: { label: "Выполнен",  dot: "bg-teal-400",    color: "text-teal-300",    bg: "bg-teal-500/15 border-teal-500/25"     },
-    cancelled: { label: "Отменён",   dot: "bg-rose-400",    color: "text-rose-300",    bg: "bg-rose-500/15 border-rose-500/25"     },
-  };
+  const maxHour = Math.max(...computed.hourMap, 1);
+  const maxDay  = Math.max(...computed.dayMap, 1);
+  const maxProd = computed.topProducts.length ? Math.max(...computed.topProducts.map((p) => p.qty), 1) : 1;
+  const maxClient = computed.topClients.length ? Math.max(...computed.topClients.map((c) => c.totalSpent), 1) : 1;
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#090b16]">
+      <div className="min-h-96 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
-          <p className="text-xs text-slate-500">Загрузка данных...</p>
+          <div className="w-10 h-10 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
+          <p className="text-xs text-slate-500 font-medium">Загрузка аналитики...</p>
         </div>
       </div>
     );
@@ -205,90 +257,223 @@ const ClientAnalytics = () => {
   return (
     <div className="max-w-6xl mx-auto p-4 flex flex-col gap-6 select-none text-slate-200">
 
-      {/* ── ЗАГОЛОВОК ── */}
-      <div className="relative bg-[#0d0f1c] border border-indigo-900/40 rounded-2xl p-6 sm:p-8 overflow-hidden">
-        <div className="absolute inset-0 bg-linear-to-br from-indigo-900/20 via-transparent to-transparent pointer-events-none" />
-        <div className="absolute top-0 right-0 w-72 h-40 bg-indigo-600/8 rounded-full blur-3xl pointer-events-none" />
-        <div className="flex items-start justify-between flex-wrap gap-4">
+      {/* ── HERO HEADER ───────────────────────────────────────────────────────── */}
+      <div className="relative rounded-3xl overflow-hidden border border-violet-800/30">
+        <div className="absolute inset-0 bg-linear-to-br from-violet-950/80 via-[#0d0f1c] to-indigo-950/60" />
+        <div className="absolute top-0 right-0 w-96 h-64 bg-violet-600/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-64 h-48 bg-indigo-600/8 rounded-full blur-3xl" />
+        {/* Декоративные точки */}
+        <div className="absolute top-4 right-4 flex gap-1.5">
+          {["bg-rose-400", "bg-amber-400", "bg-teal-400"].map((c, i) => (
+            <div key={i} className={`w-2 h-2 rounded-full ${c} opacity-60`} />
+          ))}
+        </div>
+        <div className="relative p-6 sm:p-8 flex items-center justify-between gap-6 flex-wrap">
           <div>
-            <h1 className="relative text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              📊 Аналитика клиентов
-            </h1>
-            <p className="relative text-slate-400 text-sm mt-2 max-w-xl leading-relaxed">
-              Статистика заказов и клиентов из Telegram бота.
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-2xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center text-xl">
+                📊
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-violet-400/70">CRM · Telegram Bot</p>
+                <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-none">
+                  Аналитика клиентов
+                </h1>
+              </div>
+            </div>
+            <p className="text-slate-400 text-sm leading-relaxed max-w-md">
+              Статистика заказов, клиентов и выручки из Telegram бота.
             </p>
           </div>
-          <button
-            onClick={fetchData}
-            className="flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-700/50 px-4 py-2 rounded-xl transition-all duration-200"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Обновить
-          </button>
+          <div className="flex items-center gap-3">
+            {/* Мини-итоги в хедере */}
+            <div className="hidden sm:flex gap-2">
+              {[
+                { v: allOrders.length, l: "Всего заказов", c: "text-violet-300" },
+                { v: computed.delivered, l: "Выполнено", c: "text-teal-300" },
+                { v: `${formatPrice(computed.totalRevenue)}`, l: "Выручка", c: "text-amber-300", small: true },
+              ].map((s, i) => (
+                <div key={i} className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-center min-w-20">
+                  <div className={`font-black font-mono ${s.small ? "text-sm" : "text-lg"} ${s.c}`}>{s.v}</div>
+                  <div className="text-[9px] text-slate-500 uppercase tracking-wider mt-0.5">{s.l}</div>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={fetchData}
+              className="flex items-center gap-2 text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 px-4 py-2.5 rounded-xl transition-all duration-200"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Обновить
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* ── КАРТОЧКИ СТАТИСТИКИ ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <StatCard icon="📦" label="Всего заказов"   value={stats.total}     color="indigo" sub="За всё время" />
-        <StatCard icon="✅" label="Выполнено"        value={stats.delivered} color="teal"   sub="Успешно доставлено" />
-        <StatCard icon="⏳" label="Активные"         value={stats.active}    color="amber"  sub="В обработке" />
-        <StatCard icon="❌" label="Отменено"          value={stats.cancelled} color="rose"   sub="Отменённые заказы" />
-      </div>
-
-      {/* ── ПЕРИОД ── */}
+      {/* ── ПЕРИОД ─────────────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Период:</span>
-        <div className="flex gap-0.5 bg-slate-900/70 p-1 rounded-xl border border-slate-800/60">
+        <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Период:</span>
+        <div className="flex gap-1 bg-[#0d0f1c] p-1 rounded-xl border border-slate-800/60">
           {PERIODS.map((p) => (
             <button
               key={p.key}
               onClick={() => setPeriod(p.key)}
-              className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 ${
-                period === p.key ? "bg-indigo-600/80 text-white" : "text-slate-500 hover:text-slate-300"
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all duration-200 ${
+                period === p.key
+                  ? "bg-linear-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-900/40"
+                  : "text-slate-500 hover:text-slate-300"
               }`}
             >
               {p.label}
             </button>
           ))}
         </div>
+        {computed.filteredCount > 0 && (
+          <span className="text-xs text-slate-500 font-medium">
+            — <span className="text-violet-300 font-bold">{computed.filteredCount}</span> заказов за период
+          </span>
+        )}
       </div>
 
-      {/* ── ТОП ТОВАРЫ + ТОП КЛИЕНТЫ ── */}
+      {/* ── КАРТОЧКИ СТАТИСТИКИ ─────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          {
+            icon: "📦", label: "Всего заказов", value: allOrders.length,
+            sub: "За всё время", delta: computed.ordersDelta,
+            gradient: {
+              bg: "bg-linear-to-br from-violet-950/60 to-indigo-950/40",
+              border: "border-violet-800/30",
+              label: "text-violet-400/70", num: "text-violet-200",
+              iconBg: "bg-violet-500/15", badge: "text-violet-300 bg-violet-500/15",
+            },
+          },
+          {
+            icon: "✅", label: "Выполнено", value: computed.delivered,
+            sub: "Успешно доставлено",
+            badge: `${allOrders.length > 0 ? Math.round((computed.delivered / allOrders.length) * 100) : 0}% от всех`,
+            gradient: {
+              bg: "bg-linear-to-br from-teal-950/60 to-cyan-950/40",
+              border: "border-teal-800/30",
+              label: "text-teal-400/70", num: "text-teal-200",
+              iconBg: "bg-teal-500/15", badge: "text-teal-300 bg-teal-500/15",
+            },
+          },
+          {
+            icon: "⏳", label: "Активные", value: computed.active,
+            sub: "В обработке прямо сейчас",
+            gradient: {
+              bg: "bg-linear-to-br from-amber-950/50 to-orange-950/30",
+              border: "border-amber-800/30",
+              label: "text-amber-400/70", num: "text-amber-200",
+              iconBg: "bg-amber-500/15", badge: "text-amber-300 bg-amber-500/15",
+            },
+          },
+          {
+            icon: "❌", label: "Отменено", value: computed.cancelled,
+            sub: "Отменённые заказы",
+            badge: `${allOrders.length > 0 ? Math.round((computed.cancelled / allOrders.length) * 100) : 0}% от всех`,
+            gradient: {
+              bg: "bg-linear-to-br from-rose-950/50 to-pink-950/30",
+              border: "border-rose-800/30",
+              label: "text-rose-400/70", num: "text-rose-200",
+              iconBg: "bg-rose-500/15", badge: "text-rose-300 bg-rose-500/15",
+            },
+          },
+        ].map((card, i) => (
+          <StatCard key={i} {...card} />
+        ))}
+      </div>
+
+      {/* ── ВЫРУЧКА ─────────────────────────────────────────────────────────────── */}
+      <div className="relative rounded-2xl overflow-hidden border border-teal-800/25">
+        <div className="absolute inset-0 bg-linear-to-br from-teal-950/50 via-[#0c1218] to-cyan-950/30" />
+        <div className="absolute top-0 right-0 w-80 h-56 bg-teal-500/8 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-1/3 w-48 h-36 bg-cyan-500/6 rounded-full blur-3xl" />
+        <div className="relative p-6 sm:p-8 flex flex-col gap-6">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="flex flex-col gap-2">
+              <SectionHeader
+                icon="💰"
+                title="Финансовые показатели"
+                sub={`Только выполненные заказы · ${PERIODS.find(p => p.key === period)?.label}`}
+                accent="bg-teal-500/15"
+              />
+              <div className="flex items-baseline gap-2 flex-wrap mt-2">
+                <span className="text-4xl sm:text-5xl font-black font-mono text-white tracking-tight">
+                  {formatPrice(computed.totalRevenue)}
+                </span>
+                <span className="text-lg text-teal-400/80 font-bold">сум</span>
+                {computed.revenueDelta !== 0 && (
+                  <span className={`flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${
+                    computed.revenueDelta >= 0
+                      ? "text-teal-300 bg-teal-500/10 border-teal-500/20"
+                      : "text-rose-300 bg-rose-500/10 border-rose-500/20"
+                  }`}>
+                    {computed.revenueDelta >= 0 ? "▲" : "▼"} {Math.abs(computed.revenueDelta)}%
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <span className="text-xs font-bold text-teal-300 bg-teal-500/10 border border-teal-500/20 px-3 py-1.5 rounded-lg font-mono">
+                  Средний чек: {formatPrice(computed.avgOrder)} сум
+                </span>
+                <span className="text-xs font-bold text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-3 py-1.5 rounded-lg font-mono">
+                  {computed.topProducts.reduce((s, p) => s + p.qty, 0)} шт продано
+                </span>
+              </div>
+            </div>
+          </div>
+          {/* Sparkline */}
+          {computed.trendBuckets.some((v) => v > 0) && (
+            <div>
+              <p className="text-[10px] text-slate-600 uppercase tracking-widest font-bold mb-2">Динамика выручки</p>
+              <Sparkline data={computed.trendBuckets} color="from-teal-600 to-cyan-400" height="h-16" />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── ТОП ТОВАРЫ + ТОП КЛИЕНТЫ ────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
         {/* Топ товары */}
-        <div className="bg-[#0d0f1c] border border-slate-800/60 p-5 rounded-2xl flex flex-col gap-4">
-          <div>
-            <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">🔥 Топ товары</h3>
-            <p className="text-xs text-slate-500 mt-0.5">По количеству проданных единиц за период</p>
-          </div>
-          {topProducts.length === 0 ? (
+        <div className="bg-[#0d0f1c] border border-slate-800/60 rounded-2xl p-5 flex flex-col gap-5">
+          <SectionHeader
+            icon="🔥"
+            title="Топ товары"
+            sub="По количеству единиц за период"
+            accent="bg-orange-500/15"
+          />
+          {computed.topProducts.length === 0 ? (
             <div className="text-center py-10 text-xs text-slate-600">Нет данных за этот период</div>
           ) : (
             <div className="flex flex-col gap-3">
-              {topProducts.map((item, idx) => {
+              {computed.topProducts.map((item, idx) => {
                 const pct = Math.min(100, Math.round((item.qty / maxProd) * 100));
                 return (
-                  <div key={idx} className="flex flex-col gap-1">
+                  <div key={idx} className="flex flex-col gap-1.5">
                     <div className="flex justify-between items-center text-xs gap-2">
-                      <span className="flex items-center gap-2 text-slate-300 font-medium min-w-0">
+                      <span className="flex items-center gap-2 text-slate-300 font-semibold min-w-0">
                         <span className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${idx < 3 ? RANK[idx] : "bg-slate-800/60 text-slate-600"}`}>
                           {idx + 1}
                         </span>
                         <span className="truncate">{item.name}</span>
                       </span>
                       <div className="text-right shrink-0">
-                        <div className="font-mono text-indigo-300 font-bold">{item.qty.toLocaleString()} шт</div>
+                        <div className="font-mono text-orange-300 font-bold">{item.qty.toLocaleString()} шт</div>
                         {item.revenue > 0 && (
-                          <div className="text-[10px] text-teal-400/70 font-mono">{formatPrice(item.revenue)} сум</div>
+                          <div className="text-[10px] text-slate-500 font-mono">{formatPrice(item.revenue)} сум</div>
                         )}
                       </div>
                     </div>
-                    <div className="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden">
-                      <div style={{ width: `${pct}%` }} className="h-full rounded-full bg-linear-to-r from-indigo-500 to-violet-500 transition-all duration-700" />
+                    <div className="w-full h-2 bg-slate-900/80 rounded-full overflow-hidden">
+                      <div
+                        style={{ width: `${pct}%` }}
+                        className="h-full rounded-full bg-linear-to-r from-orange-500 via-amber-500 to-yellow-500 transition-all duration-700"
+                      />
                     </div>
                   </div>
                 );
@@ -298,21 +483,23 @@ const ClientAnalytics = () => {
         </div>
 
         {/* Топ клиенты */}
-        <div className="bg-[#0d0f1c] border border-slate-800/60 p-5 rounded-2xl flex flex-col gap-4">
-          <div>
-            <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">👑 Топ клиенты</h3>
-            <p className="text-xs text-slate-500 mt-0.5">По сумме покупок за выбранный период</p>
-          </div>
-          {topClients.length === 0 ? (
+        <div className="bg-[#0d0f1c] border border-slate-800/60 rounded-2xl p-5 flex flex-col gap-5">
+          <SectionHeader
+            icon="👑"
+            title="Топ клиенты"
+            sub="По сумме покупок за период"
+            accent="bg-violet-500/15"
+          />
+          {computed.topClients.length === 0 ? (
             <div className="text-center py-10 text-xs text-slate-600">Нет данных за этот период</div>
           ) : (
             <div className="flex flex-col gap-3">
-              {topClients.map((client, idx) => {
+              {computed.topClients.map((client, idx) => {
                 const pct = Math.min(100, Math.round((client.totalSpent / maxClient) * 100));
                 return (
-                  <div key={idx} className="flex flex-col gap-1">
+                  <div key={idx} className="flex flex-col gap-1.5">
                     <div className="flex justify-between items-center text-xs gap-2">
-                      <span className="flex items-center gap-2 text-slate-300 font-medium min-w-0">
+                      <span className="flex items-center gap-2 text-slate-300 font-semibold min-w-0">
                         <span className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${idx < 3 ? RANK[idx] : "bg-slate-800/60 text-slate-600"}`}>
                           {idx + 1}
                         </span>
@@ -320,14 +507,20 @@ const ClientAnalytics = () => {
                           <span className="truncate">{client.name}</span>
                           {client.phone && <span className="text-[10px] text-slate-500 font-normal">{client.phone}</span>}
                         </span>
+                        {client.isNew && (
+                          <span className="text-[9px] font-black text-teal-400 bg-teal-500/10 border border-teal-500/20 px-1.5 py-0.5 rounded-full shrink-0">NEW</span>
+                        )}
                       </span>
                       <div className="text-right shrink-0">
-                        <div className="font-mono text-teal-300 font-bold">{formatPrice(client.totalSpent)} сум</div>
+                        <div className="font-mono text-violet-300 font-bold">{formatPrice(client.totalSpent)} сум</div>
                         <div className="text-[10px] text-slate-500 font-mono">{client.orderCount} заказов</div>
                       </div>
                     </div>
-                    <div className="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden">
-                      <div style={{ width: `${pct}%` }} className="h-full rounded-full bg-linear-to-r from-teal-500 to-cyan-500 transition-all duration-700" />
+                    <div className="w-full h-2 bg-slate-900/80 rounded-full overflow-hidden">
+                      <div
+                        style={{ width: `${pct}%` }}
+                        className="h-full rounded-full bg-linear-to-r from-violet-500 via-purple-500 to-indigo-500 transition-all duration-700"
+                      />
                     </div>
                   </div>
                 );
@@ -337,120 +530,230 @@ const ClientAnalytics = () => {
         </div>
       </div>
 
-      {/* ── ВЫРУЧКА ── */}
-      <div className="bg-[#0d0f1c] border border-slate-800/60 rounded-2xl p-5 sm:p-6 flex flex-col gap-5">
-        <div>
-          <h4 className="text-sm font-bold text-slate-200 flex items-center gap-2">💰 Финансовые показатели</h4>
-          <p className="text-xs text-slate-500 mt-0.5">Только по выполненным заказам</p>
-        </div>
-        <div className="relative rounded-2xl border border-teal-800/25 overflow-hidden">
-          <div className="absolute inset-0 bg-linear-to-br from-teal-950/40 via-[#0c1218] to-[#0a0e14]" />
-          <div className="absolute top-0 right-0 w-64 h-48 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="relative p-5 sm:p-6 flex flex-col gap-5">
+      {/* ── PEAK HOURS + ДНЕЙ НЕДЕЛИ ─────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+        {/* Peak Hours */}
+        <div className="bg-[#0d0f1c] border border-slate-800/60 rounded-2xl p-5 flex flex-col gap-5">
+          <div className="flex items-start justify-between gap-2">
+            <SectionHeader
+              icon="⏰"
+              title="Активные часы"
+              sub="Когда чаще всего поступают заказы"
+              accent="bg-cyan-500/15"
+            />
+            {computed.filteredCount > 0 && (
+              <div className="text-right shrink-0">
+                <div className="text-[10px] text-slate-500 uppercase tracking-wider">Пик</div>
+                <div className="text-cyan-300 font-black font-mono text-sm">{String(computed.peakHour).padStart(2, "0")}:00</div>
+              </div>
+            )}
+          </div>
+          {computed.filteredCount === 0 ? (
+            <div className="text-center py-10 text-xs text-slate-600">Нет данных за этот период</div>
+          ) : (
             <div className="flex flex-col gap-2">
-              <div className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold flex items-center gap-1.5">
-                Общая выручка ·
-                <span className="text-teal-400">{PERIODS.find((p) => p.key === period)?.label}</span>
-              </div>
-              <div className="flex items-baseline gap-2 flex-wrap">
-                <span className="text-4xl sm:text-5xl font-black font-mono text-white tracking-tight leading-none">
-                  {formatPrice(revenueStats.total)}
-                </span>
-                <span className="text-base text-teal-400/80 font-bold">сум</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="bg-indigo-500/15 border border-indigo-500/20 text-indigo-300 font-mono font-bold text-xs px-3 py-1 rounded-lg">
-                  Средний чек: {formatPrice(revenueStats.avg)} сум
-                </span>
+              {/* Группируем по 6-часовым блокам для читаемости */}
+              {[
+                { label: "Ночь 00–05", hours: [0,1,2,3,4,5], color: "from-slate-600 to-slate-500" },
+                { label: "Утро 06–11", hours: [6,7,8,9,10,11], color: "from-amber-600 to-yellow-500" },
+                { label: "День 12–17", hours: [12,13,14,15,16,17], color: "from-orange-500 to-amber-400" },
+                { label: "Вечер 18–23", hours: [18,19,20,21,22,23], color: "from-violet-600 to-indigo-500" },
+              ].map(({ label, hours, color }) => {
+                const total = hours.reduce((s, h) => s + computed.hourMap[h], 0);
+                const pct = Math.min(100, Math.round((total / (computed.filteredCount || 1)) * 100));
+                const peak = hours.find(h => computed.hourMap[h] === Math.max(...hours.map(h2 => computed.hourMap[h2])));
+                return (
+                  <div key={label} className="flex flex-col gap-1">
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="text-slate-400 font-semibold">{label}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-600 font-mono">пик {String(peak).padStart(2,"0")}:00</span>
+                        <span className="text-slate-300 font-bold font-mono">{total} зак.</span>
+                      </div>
+                    </div>
+                    <div className="w-full h-2.5 bg-slate-900/80 rounded-full overflow-hidden">
+                      <div style={{ width: `${pct}%` }} className={`h-full rounded-full bg-linear-to-r ${color} transition-all duration-700`} />
+                    </div>
+                  </div>
+                );
+              })}
+              {/* Детальный bar chart по часам */}
+              <div className="mt-2 pt-3 border-t border-slate-800/50">
+                <p className="text-[10px] text-slate-600 uppercase tracking-widest font-bold mb-2">Почасово</p>
+                <div className="flex items-end gap-px h-12">
+                  {computed.hourMap.map((v, h) => {
+                    const ht = Math.max(4, Math.round((v / maxHour) * 100));
+                    const isPeak = h === computed.peakHour;
+                    return (
+                      <div
+                        key={h}
+                        title={`${String(h).padStart(2,"0")}:00 — ${v} зак.`}
+                        style={{ height: `${ht}%` }}
+                        className={`flex-1 rounded-t-sm transition-all duration-500 ${
+                          isPeak
+                            ? "bg-linear-to-t from-cyan-500 to-cyan-300"
+                            : "bg-slate-700/60 hover:bg-slate-600/80"
+                        }`}
+                      />
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between text-[9px] text-slate-700 font-mono mt-1">
+                  <span>00</span><span>06</span><span>12</span><span>18</span><span>23</span>
+                </div>
               </div>
             </div>
-            {trend.some((v) => v > 0) && (
-              <div className="flex items-end gap-0.5 h-14">
-                {trend.map((v, i) => {
-                  const h = Math.max(4, Math.round((v / maxTrend) * 100));
-                  const isLast = i === trend.length - 1;
+          )}
+        </div>
+
+        {/* По дням недели + Новые vs Вернувшиеся */}
+        <div className="flex flex-col gap-5">
+
+          {/* По дням недели */}
+          <div className="bg-[#0d0f1c] border border-slate-800/60 rounded-2xl p-5 flex flex-col gap-4">
+            <SectionHeader
+              icon="📅"
+              title="По дням недели"
+              sub="Активность заказов за период"
+              accent="bg-indigo-500/15"
+            />
+            {computed.filteredCount === 0 ? (
+              <div className="text-center py-6 text-xs text-slate-600">Нет данных</div>
+            ) : (
+              <div className="flex items-end gap-2 h-20">
+                {computed.dayMap.map((v, d) => {
+                  const ht = Math.max(8, Math.round((v / maxDay) * 100));
+                  const isMax = v === Math.max(...computed.dayMap);
                   return (
-                    <div
-                      key={i}
-                      title={formatPrice(v) + " сум"}
-                      style={{ height: `${h}%` }}
-                      className={`flex-1 rounded-t-sm transition-all duration-500 ${
-                        isLast
-                          ? "bg-linear-to-t from-teal-500 to-cyan-300"
-                          : "bg-linear-to-t from-teal-700/50 to-teal-500/30 hover:from-teal-600/70"
-                      }`}
-                    />
+                    <div key={d} className="flex-1 flex flex-col items-center gap-1">
+                      <div className="w-full flex items-end" style={{ height: "60px" }}>
+                        <div
+                          style={{ height: `${ht}%` }}
+                          className={`w-full rounded-t-lg transition-all duration-700 ${
+                            isMax
+                              ? "bg-linear-to-t from-indigo-600 to-violet-400"
+                              : "bg-slate-800 hover:bg-slate-700"
+                          }`}
+                        />
+                      </div>
+                      <span className={`text-[10px] font-bold ${isMax ? "text-violet-300" : "text-slate-600"}`}>
+                        {DAYS_RU[d]}
+                      </span>
+                    </div>
                   );
                 })}
+              </div>
+            )}
+          </div>
+
+          {/* Новые vs Вернувшиеся */}
+          <div className="bg-[#0d0f1c] border border-slate-800/60 rounded-2xl p-5 flex flex-col gap-4">
+            <SectionHeader
+              icon="👥"
+              title="Новые vs Вернувшиеся"
+              sub="Клиенты за выбранный период"
+              accent="bg-teal-500/15"
+            />
+            {computed.totalClients === 0 ? (
+              <div className="text-center py-4 text-xs text-slate-600">Нет данных</div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <div className="flex gap-3">
+                  {[
+                    { label: "Новые клиенты", value: computed.newClients, color: "text-teal-300", bar: "from-teal-500 to-cyan-400", bg: "bg-teal-500/10 border-teal-500/20" },
+                    { label: "Вернувшиеся", value: computed.returningClients, color: "text-violet-300", bar: "from-violet-500 to-indigo-400", bg: "bg-violet-500/10 border-violet-500/20" },
+                  ].map((s) => (
+                    <div key={s.label} className={`flex-1 rounded-xl border p-3 ${s.bg}`}>
+                      <div className={`text-2xl font-black font-mono ${s.color}`}>{s.value}</div>
+                      <div className="text-[10px] text-slate-500 font-semibold mt-1">{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+                {/* Процент полоса */}
+                {computed.totalClients > 0 && (
+                  <div>
+                    <div className="flex justify-between text-[10px] text-slate-500 mb-1">
+                      <span className="text-teal-400 font-bold">
+                        {Math.round((computed.newClients / computed.totalClients) * 100)}% новых
+                      </span>
+                      <span className="text-violet-400 font-bold">
+                        {Math.round((computed.returningClients / computed.totalClients) * 100)}% вернувшихся
+                      </span>
+                    </div>
+                    <div className="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden flex">
+                      <div
+                        style={{ width: `${Math.round((computed.newClients / computed.totalClients) * 100)}%` }}
+                        className="h-full bg-linear-to-r from-teal-500 to-cyan-400 transition-all duration-700"
+                      />
+                      <div
+                        style={{ width: `${Math.round((computed.returningClients / computed.totalClients) * 100)}%` }}
+                        className="h-full bg-linear-to-r from-violet-500 to-indigo-400 transition-all duration-700"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* ── СТАТУСЫ ── */}
-      <div className="bg-[#0d0f1c] border border-slate-800/60 rounded-2xl p-5 flex flex-col gap-4">
-        <div>
-          <h4 className="text-sm font-bold text-slate-200">📊 Распределение по статусам</h4>
-          <p className="text-xs text-slate-500 mt-0.5">За всё время</p>
-        </div>
+      {/* ── РАСПРЕДЕЛЕНИЕ СТАТУСОВ ──────────────────────────────────────────────── */}
+      <div className="bg-[#0d0f1c] border border-slate-800/60 rounded-2xl p-5 flex flex-col gap-5">
+        <SectionHeader icon="📊" title="Распределение по статусам" sub="За всё время" accent="bg-slate-700/50" />
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {Object.entries(STATUS_LABEL).map(([key, cfg]) => {
+          {Object.entries(STATUS_CFG).map(([key, cfg]) => {
             const count = allOrders.filter((o) => o.status === key).length;
             const pct = allOrders.length > 0 ? Math.round((count / allOrders.length) * 100) : 0;
             return (
               <div key={key} className={`rounded-xl border p-4 ${cfg.bg}`}>
                 <div className="flex items-center gap-2 mb-2">
                   <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-                  <span className={`text-[11px] font-bold uppercase tracking-wider ${cfg.color}`}>{cfg.label}</span>
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${cfg.color}`}>{cfg.label}</span>
                 </div>
                 <div className={`text-2xl font-black font-mono ${cfg.color}`}>{count}</div>
                 <div className="text-[10px] text-slate-600 font-mono mt-1">{pct}% от всех</div>
+                <div className="w-full h-1 bg-slate-900 rounded-full overflow-hidden mt-2">
+                  <div style={{ width: `${pct}%` }} className={`h-full rounded-full ${cfg.dot} transition-all duration-700`} />
+                </div>
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* ── ПОСЛЕДНИЕ ЗАКАЗЫ ── */}
-      <div className="bg-[#0d0f1c] border border-slate-800/60 p-5 rounded-2xl flex flex-col gap-4">
-        <div>
-          <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">⚡ Последние заказы</h3>
-          <p className="text-xs text-slate-500 mt-0.5">5 самых последних заказов</p>
-        </div>
-        <div className="flex flex-col gap-3">
-          {recentOrders.length === 0 ? (
+      {/* ── ПОСЛЕДНИЕ ЗАКАЗЫ ─────────────────────────────────────────────────────── */}
+      <div className="bg-[#0d0f1c] border border-slate-800/60 rounded-2xl p-5 flex flex-col gap-5">
+        <SectionHeader icon="⚡" title="Последние заказы" sub="5 самых последних заказов из бота" accent="bg-amber-500/15" />
+        <div className="flex flex-col gap-2">
+          {computed.recentOrders.length === 0 ? (
             <div className="text-center py-8 text-xs text-slate-600">Заказов пока нет</div>
           ) : (
-            recentOrders.map((order, idx) => {
-              const cfg = STATUS_LABEL[order.status] || STATUS_LABEL.new;
+            computed.recentOrders.map((order, idx) => {
+              const cfg = STATUS_CFG[order.status] || STATUS_CFG.new;
               const clientName = order?.botUser?.fullName || order?.botUser?.firstName || `TG: ${order?.telegramId}`;
               const items = order.items || [];
               const itemsPreview = items.slice(0, 2).map((i) => i?.product?.name || "Товар").join(", ");
               const moreCount = items.length - 2;
               const total = getOrderTotal(order);
               return (
-                <div key={idx} className="flex items-start gap-3 text-xs group">
-                  <span className={`mt-1 w-2 h-2 rounded-full shrink-0 ring-4 ring-slate-900/50 ${cfg.dot}`} />
-                  <div className="flex-1 border-b border-slate-900 pb-3 group-last:border-none">
-                    <div className="flex justify-between items-start gap-2 flex-wrap">
-                      <div>
-                        <span className="font-semibold text-slate-300">{clientName}</span>
-                        <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${cfg.bg} ${cfg.color}`}>
-                          {cfg.label}
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-slate-600 font-mono shrink-0">
-                        {formatDateTime(order.createdAt)}
+                <div key={idx} className="flex items-center gap-3 p-3 rounded-xl bg-slate-900/30 hover:bg-slate-900/60 border border-slate-800/30 hover:border-slate-700/50 transition-all duration-200">
+                  <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${cfg.dot}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-sm text-slate-200">{clientName}</span>
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${cfg.bg} ${cfg.color}`}>
+                        {cfg.label}
                       </span>
                     </div>
-                    <p className="text-slate-500 mt-1">
-                      {itemsPreview}
-                      {moreCount > 0 && <span className="text-slate-600"> +{moreCount} ещё</span>}
+                    <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                      {itemsPreview}{moreCount > 0 && <span className="text-slate-600"> +{moreCount} ещё</span>}
                     </p>
-                    {total > 0 && (
-                      <p className="text-teal-400/80 font-mono font-bold mt-0.5">{formatPrice(total)} сум</p>
-                    )}
+                  </div>
+                  <div className="text-right shrink-0">
+                    {total > 0 && <div className="text-sm font-black font-mono text-amber-300">{formatPrice(total)} сум</div>}
+                    <div className="text-[10px] text-slate-600 font-mono">{formatDateTime(order.createdAt)}</div>
                   </div>
                 </div>
               );

@@ -163,7 +163,6 @@ const Sidebar = () => {
                   📊
                 </span>
                 <span className="flex-1">Аналитика клиентов</span>
-                <BellIcon unreadCount={clientUnreadCount} color="teal" />
               </>
             )}
           </NavLink>

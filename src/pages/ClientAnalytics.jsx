@@ -160,7 +160,7 @@ const ClientAnalytics = () => {
     const topProducts = Object.entries(prodMap)
       .map(([name, d]) => ({ name, ...d }))
       .sort((a, b) => b.qty - a.qty)
-      .slice(0, 7);
+      .slice(0, 3);
 
     // Топ клиенты
     const clientMap = {};

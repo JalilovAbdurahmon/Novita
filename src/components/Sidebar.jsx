@@ -153,6 +153,21 @@ const Sidebar = () => {
         </div>
 
         <nav className="flex flex-col gap-2">
+          <NavLink to="/clientAnalytics" className={linkClass}>
+            {({ isActive }) => (
+              <>
+                {isActive && (
+                  <div className="absolute left-0 w-1 h-6 bg-cyan-400 rounded-r-full" />
+                )}
+                <span className="text-lg transition-transform duration-300 group-hover:scale-110">
+                  📊
+                </span>
+                <span className="flex-1">Аналитика клиентов</span>
+                <BellIcon unreadCount={clientUnreadCount} color="teal" />
+              </>
+            )}
+          </NavLink>
+
           {/* Заказы клиентов — teal bell (yangi) */}
           <NavLink to="/clientOrder" className={linkClass}>
             {({ isActive }) => (

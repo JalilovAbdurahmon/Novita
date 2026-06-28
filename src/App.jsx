@@ -11,6 +11,7 @@ import { Toaster } from "react-hot-toast";
 import MiniApp from "./pages/MiniApp";
 import ClientOrders from "./pages/ClientOrders";
 import ClientHistory from "./pages/ClientHistory";
+import ClientAnalytics from "./pages/ClientAnalytics";
 
 const App = () => {
   return (
@@ -26,6 +27,7 @@ const App = () => {
           <Route path="/historyOrder" element={<OrderHistory />} />
           <Route path="/clientOrder" element={<ClientOrders />} />
           <Route path="/clientHistory" element={<ClientHistory />} />
+          <Route path="/clientAnalytics" element={<ClientAnalytics />} />
         </Route>
       </Routes>
     </div>

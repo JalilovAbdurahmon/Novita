@@ -35,6 +35,28 @@ function formatDateTime(dateStr) {
   });
 }
 
+function formatPhone(phone) {
+  if (!phone) return "—";
+  const digits = String(phone).replace(/\D/g, "");
+  const local = digits.startsWith("998") ? digits.slice(3) : digits;
+  if (!local) return "—";
+  let formatted = "+998";
+  if (local.length > 0) formatted += " " + local.slice(0, 2);
+  if (local.length > 2) formatted += " " + local.slice(2, 5);
+  if (local.length > 5) formatted += " " + local.slice(5, 7);
+  if (local.length > 7) formatted += " " + local.slice(7, 9);
+  return formatted;
+}
+
+function mapsLink(location) {
+  if (!location?.lat || !location?.lng) return null;
+  return `https://www.google.com/maps?q=${location.lat},${location.lng}`;
+}
+
+function getOrderItemsCount(order) {
+  return (order.items || []).reduce((sum, i) => sum + (i.quantity || 0), 0);
+}
+
 // ─── Mini Sparkline ────────────────────────────────────────────────────────────
 const Sparkline = ({ data, color = "from-indigo-600 to-violet-600", height = "h-10" }) => {
   const max = Math.max(...data, 1);
@@ -90,11 +112,172 @@ const SectionHeader = ({ icon, title, sub, accent }) => (
   </div>
 );
 
-// ─── Main ──────────────────────────────────────────────────────────────────────
+// ─── Detail Modal ─────────────────────────────────────────────────────────────
+const ORDER_STATUS_CONFIG = {
+  new: {
+    label: "Новый",
+    badge: "bg-orange-500/15 text-orange-400 border border-orange-500/30",
+  },
+  accepted: {
+    label: "Принят",
+    badge: "bg-blue-500/15 text-blue-400 border border-blue-500/30",
+  },
+  delivered: {
+    label: "Выполнен",
+    badge: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30",
+  },
+  cancelled: {
+    label: "Отменён",
+    badge: "bg-rose-500/15 text-rose-400 border border-rose-500/30",
+  },
+};
+
+const OrderDetailModal = ({ order, onClose }) => {
+  if (!order) return null;
+  const status = ORDER_STATUS_CONFIG[order.status] || ORDER_STATUS_CONFIG.delivered;
+  const items = order.items || [];
+  const total = getOrderTotal(order);
+  const link = mapsLink(order.location);
+
+  return (
+    <div
+      className="fixed inset-0 z-9999 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+      style={{ animation: "fadeInAnalytics 0.2s ease forwards" }}
+      onClick={onClose}
+    >
+      <style>{`
+        @keyframes fadeInAnalytics { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes modalUpAnalytics {
+          from { opacity: 0; transform: translateY(24px) scale(0.97); }
+          to   { opacity: 1; transform: translateY(0)     scale(1); }
+        }
+      `}</style>
+      <div
+        className="w-full max-w-md bg-[#0d0f1a] border border-slate-800 rounded-2xl shadow-2xl overflow-hidden"
+        style={{ animation: "modalUpAnalytics 0.3s cubic-bezier(0.34,1.3,0.64,1) forwards" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Top gradient line */}
+        <div className="h-0.5 w-full bg-linear-to-r from-cyan-500 via-violet-500 to-pink-500" />
+
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-slate-800/80 flex items-start justify-between gap-4 bg-slate-900/30">
+          <div>
+            <h3 className="text-base font-black text-white tracking-wide">Детали заказа</h3>
+            <p className="text-slate-500 text-xs mt-0.5 font-mono">{formatDateTime(order.createdAt)}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700/80 transition-all"
+          >
+            ✕ Закрыть
+          </button>
+        </div>
+
+        <div className="px-6 py-5 flex flex-col gap-4">
+          {/* Status */}
+          <span className={`inline-flex items-center text-xs font-bold px-3 py-1.5 rounded-full ${status.badge}`}>
+            {status.label}
+          </span>
+
+          {/* Info rows — клиент */}
+          <div className="flex flex-col divide-y divide-slate-800/60 text-sm">
+            {[
+              { label: "Клиент",   value: order.botUser?.fullName || order.botUser?.firstName || `TG: ${order.telegramId}` || "Неизвестно" },
+              { label: "Телефон",  value: formatPhone(order.botUser?.phone), mono: true },
+              { label: "Username", value: order.botUser?.username ? `@${order.botUser.username}` : "—" },
+              ...(order.note ? [{ label: "Примечание", value: `"${order.note}"`, italic: true }] : []),
+            ].map(({ label, value, mono, italic }) => (
+              <div key={label} className="flex items-center justify-between py-3 gap-3">
+                <span className="text-slate-500 text-[11px] uppercase tracking-wide font-bold shrink-0">
+                  {label}
+                </span>
+                <span
+                  className={`text-right font-semibold text-[13px] truncate text-slate-200
+                    ${mono   ? "font-mono"   : ""}
+                    ${italic ? "italic text-slate-400" : ""}
+                  `}
+                >
+                  {value}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Mahsulotlar ro'yxati */}
+          <div className="flex flex-col gap-2">
+            <span className="text-slate-500 text-[11px] uppercase tracking-wide font-bold">
+              Товары
+            </span>
+            <div className="flex flex-col divide-y divide-slate-800/60 rounded-xl border border-slate-800/60 overflow-hidden">
+              {items.length === 0 ? (
+                <div className="px-3 py-3 text-slate-500 text-sm text-center">
+                  Нет товаров
+                </div>
+              ) : (
+                items.map((item, idx) => {
+                  const name = item.product?.name || "—";
+                  const price = item.price ?? item.product?.price ?? 0;
+                  const qty = item.quantity || 0;
+                  const lineTotal = price * qty;
+                  return (
+                    <div
+                      key={item._id || idx}
+                      className="px-3 py-2.5 flex items-center justify-between gap-3 bg-slate-900/20"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-slate-200 text-[13px] font-semibold truncate">
+                          {name}
+                        </div>
+                        <div className="text-slate-500 text-[11px] font-mono">
+                          {qty} шт × {formatPrice(price)} сум
+                        </div>
+                      </div>
+                      <div className="text-violet-400 font-bold text-[13px] font-mono shrink-0">
+                        {formatPrice(lineTotal)} сум
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Price summary */}
+          {total > 0 && (
+            <div className="rounded-xl bg-linear-to-r from-orange-500/10 to-violet-500/10 border border-orange-500/15 px-4 py-3 flex items-center justify-between">
+              <span className="text-xs text-slate-400 font-bold">Итого по заказу</span>
+              <span className="text-orange-400 font-black text-sm">{formatPrice(total)} сум</span>
+            </div>
+          )}
+
+          {/* Map link */}
+          {link ? (
+            <a
+              href={link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 text-cyan-400 hover:text-cyan-300 text-sm font-bold transition-all"
+            >
+              📍 Открыть на карте
+            </a>
+          ) : (
+            <div className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-slate-800/30 border border-slate-800 text-slate-600 text-sm">
+              📍 Локация не получена
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
 const ClientAnalytics = () => {
   const [allOrders, setAllOrders] = useState([]);
   const [period, setPeriod] = useState("1m");
   const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(null);
 
   useEffect(() => { fetchData(); }, []);
 
@@ -737,7 +920,11 @@ const ClientAnalytics = () => {
               const moreCount = items.length - 2;
               const total = getOrderTotal(order);
               return (
-                <div key={idx} className="flex items-center gap-3 p-3 rounded-xl bg-slate-900/50 hover:bg-slate-900/80 border border-slate-800/40 hover:border-slate-700/60 transition-all duration-200">
+                <div
+                  key={idx}
+                  onClick={() => setSelected(order)}
+                  className="flex items-center gap-3 p-3 rounded-xl bg-slate-900/50 hover:bg-slate-900/80 border border-slate-800/40 hover:border-slate-700/60 transition-all duration-200 cursor-pointer"
+                >
                   <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${cfg.dot}`} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -760,6 +947,9 @@ const ClientAnalytics = () => {
           )}
         </div>
       </div>
+
+      {/* DETAIL MODAL */}
+      <OrderDetailModal order={selected} onClose={() => setSelected(null)} />
 
     </div>
   );
